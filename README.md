@@ -26,6 +26,27 @@ npm start          # then, with the server up and Playwright installed:
 npm run test:e2e   # 13-step browser walkthrough of the main flows
 ```
 
+### Single-file build
+
+For hosts that can't serve a directory of ES modules (a strict CSP, an email
+attachment, a single-file upload):
+
+```bash
+npm run build      # → dist/shopping-list.html, everything inlined
+```
+
+The output is one ~125 KB file with no external requests. Because it puts every
+module in one scope, the build fails loudly if two modules declare the same
+top-level name. Its script payload is `\uXXXX`-escaped, so emoji and symbols
+survive hosts that don't send `charset=utf-8`.
+
+`npm run test:e2e` can be pointed at the bundle to confirm it behaves
+identically:
+
+```bash
+APP_URL=http://localhost:8080/dist/shopping-list.html npm run test:e2e
+```
+
 ## What it does
 
 **Lists** — create, rename, and delete lists. Every edit autosaves; there's no

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8080",
+    "build": "node tools/build-single-file.js",
     "test": "node tests/run.js",
     "test:e2e": "node tests/e2e.mjs"
   }

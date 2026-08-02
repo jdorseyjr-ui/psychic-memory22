@@ -29,6 +29,13 @@
 
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --category-color: var(--ink-faint);
+
+  /*
+   * The warm-paper palette is a deliberate single-theme commitment (spec §7),
+   * so pin the scheme: without this, a viewer on a dark OS theme gets dark
+   * native chrome on the unit <select> and quantity <input> inside light cards.
+   */
+  color-scheme: light;
 }
 
 * {

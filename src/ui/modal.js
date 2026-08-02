@@ -7,7 +7,7 @@
 import { h, mount } from './dom.js';
 import { CATEGORIES, categoryLabel } from '../core/categories.js';
 
-const root = () => document.getElementById('modal-root');
+const modalRoot = () => document.getElementById('modal-root');
 
 function openSheet(build) {
   return new Promise((resolve) => {
@@ -16,7 +16,7 @@ function openSheet(build) {
       if (settled) return;
       settled = true;
       document.removeEventListener('keydown', onKeyDown, true);
-      mount(root());
+      mount(modalRoot());
       document.body.classList.remove('modal-open');
       resolve(value);
     };
@@ -39,7 +39,7 @@ function openSheet(build) {
     build(panel, close);
     document.addEventListener('keydown', onKeyDown, true);
     document.body.classList.add('modal-open');
-    mount(root(), backdrop);
+    mount(modalRoot(), backdrop);
 
     const focusTarget = panel.querySelector('[data-autofocus]');
     if (focusTarget) requestAnimationFrame(() => focusTarget.focus());
