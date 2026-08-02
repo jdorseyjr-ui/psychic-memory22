@@ -1,0 +1,12 @@
+{
+  "name": "shopping-list-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shopping lists with a built-in grocery database, recipes, and an in-store shopping mode. Local-only, no build step.",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node tests/run.js",
+    "test:e2e": "node tests/e2e.mjs"
+  }
+}
