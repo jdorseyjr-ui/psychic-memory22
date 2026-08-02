@@ -14,6 +14,7 @@ import {
   createCustomEntry,
   defaultUnitFor,
   categoryOf,
+  getEntry,
 } from '../src/core/groceryDb.js';
 import { SEED_ENTRIES } from '../src/data/groceryData.js';
 import {
@@ -26,6 +27,7 @@ import {
   allItems,
   itemCount,
   findItem,
+  toIngredient,
 } from '../src/core/model.js';
 import { formatQuantity } from '../src/core/units.js';
 import { CATEGORIES } from '../src/core/categories.js';
@@ -165,6 +167,32 @@ test('items adopt their database entry name, category, and default unit', () => 
   assert.equal(categoryOf(db, item), 'meat');
 });
 
+test('items carry a category/emoji snapshot from their database entry', () => {
+  // Denormalized so another device can render the item without owning the
+  // database entry it points at.
+  const item = createItem({ dbEntry: matchEntry(db, 'ground beef') });
+  assert.equal(item.category, 'meat');
+  assert.equal(item.emoji, '🥩');
+});
+
+test('an item referencing an unknown entry still lands in the right aisle', () => {
+  // Exactly what happens when the other person adds a custom item: their
+  // database entry never syncs, only the item does.
+  const theirEntry = createCustomEntry('Dragonfruit Powder', 'pantry');
+  const item = createItem({ dbEntry: theirEntry });
+  const myDb = buildDatabase([]); // I have never seen their custom entry
+
+  assert.equal(getEntry(myDb, item.dbEntryId), null, 'the entry really is unknown here');
+  assert.equal(categoryOf(myDb, item), 'pantry', 'aisle comes from the snapshot');
+  assert.equal(item.name, 'Dragonfruit Powder');
+});
+
+test('this device\'s database entry outranks the snapshot', () => {
+  // So recategorizing an item locally takes effect instead of being pinned.
+  const item = { ...createItem({ dbEntry: matchEntry(db, 'apple') }), category: 'frozen' };
+  assert.equal(categoryOf(db, item), 'produce');
+});
+
 test('freeform items fall back to the Other aisle', () => {
   const item = createItem({ name: 'Birthday candles' });
   assert.equal(item.dbEntryId, null);
@@ -186,6 +214,37 @@ test('recipe ingredients are nested under the instance, not the list', () => {
   assert.equal(itemCount(list), 2);
   assert.equal(allItems(list).length, 2);
   assert.equal(findItem(list, recipe.items[0].id).recipe.id, recipe.id);
+});
+
+test('instantiating a saved recipe keeps each ingredient linked to its database entry', () => {
+  // Without the link, a recipe's tortillas and a manually added tortilla show
+  // as two separate lines in shopping mode instead of merging (spec §6).
+  const tortilla = matchEntry(db, 'tortilla');
+  const definition = createRecipeDefinition({
+    name: 'Tacos',
+    ingredients: [toIngredient(createItem({ dbEntry: tortilla, quantity: 8 }))],
+  });
+  const instance = instantiateRecipe(definition);
+
+  assert.equal(instance.items[0].dbEntryId, tortilla.id);
+  assert.equal(instance.items[0].category, 'bakery');
+});
+
+test('a saved recipe\'s ingredient merges with the same item added by hand', () => {
+  const tortilla = matchEntry(db, 'tortilla');
+  const definition = createRecipeDefinition({
+    name: 'Tacos',
+    ingredients: [toIngredient(createItem({ dbEntry: tortilla, quantity: 8 }))],
+  });
+
+  const list = createList('Weekly');
+  list.items.push(createItem({ dbEntry: tortilla, quantity: 2 }));
+  list.recipes.push(instantiateRecipe(definition));
+
+  const lines = buildShoppingView(list, db).flatMap((section) => section.lines);
+  assert.equal(lines.length, 1, 'one merged line, not two');
+  assert.equal(lines[0].quantity, 10);
+  assert.equal(lines[0].itemIds.length, 2);
 });
 
 test('instantiating a saved recipe copies ingredients without sharing ids', () => {

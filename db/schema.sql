@@ -43,6 +43,11 @@ create table if not exists public.list_items (
   quantity     numeric not null default 1,
   unit         text not null default 'count',
   unit_label   text,
+  -- Denormalized from the client's grocery database: the database itself is
+  -- per-device, so an item referencing another person's custom entry still
+  -- carries the aisle and icon needed to render it correctly.
+  category     text,
+  emoji        text,
   checked      boolean not null default false,
   deleted      boolean not null default false,
   updated_at   timestamptz not null default now()
@@ -127,6 +132,8 @@ begin
         'quantity', i.quantity,
         'unit', i.unit,
         'unitLabel', i.unit_label,
+        'category', i.category,
+        'emoji', i.emoji,
         'checked', i.checked,
         'deleted', i.deleted,
         'updatedAt', to_char(i.updated_at at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
@@ -198,7 +205,7 @@ begin
 
   insert into public.list_items (
     id, list_id, recipe_id, db_entry_id, name,
-    quantity, unit, unit_label, checked, deleted, updated_at
+    quantity, unit, unit_label, category, emoji, checked, deleted, updated_at
   )
   select
     (i ->> 'id')::uuid,
@@ -209,6 +216,8 @@ begin
     coalesce((i ->> 'quantity')::numeric, 1),
     coalesce(i ->> 'unit', 'count'),
     nullif(i ->> 'unitLabel', ''),
+    nullif(i ->> 'category', ''),
+    nullif(i ->> 'emoji', ''),
     coalesce((i ->> 'checked')::boolean, false),
     coalesce((i ->> 'deleted')::boolean, false),
     (i ->> 'updatedAt')::timestamptz
@@ -220,6 +229,8 @@ begin
         quantity    = excluded.quantity,
         unit        = excluded.unit,
         unit_label  = excluded.unit_label,
+        category    = excluded.category,
+        emoji       = excluded.emoji,
         checked     = excluded.checked,
         deleted     = excluded.deleted,
         updated_at  = excluded.updated_at

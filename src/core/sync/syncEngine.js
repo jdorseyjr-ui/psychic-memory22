@@ -70,6 +70,10 @@ export function createSyncEngine({
         quantity: item.quantity,
         unit: item.unit,
         unitLabel: item.unitLabel ?? null,
+        // Denormalized so the other device files this in the right aisle even
+        // when it references a custom database entry it has never seen.
+        category: item.category ?? null,
+        emoji: item.emoji ?? null,
         checked: Boolean(item.checked),
         deleted: Boolean(item.deleted),
         updatedAt: item.updatedAt,

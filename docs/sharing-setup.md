@@ -122,8 +122,12 @@ network and no account.
 - **Revoking or rotating a share link.**
 - **More than two people.** Nothing stops it — the design is n-way — but it's
   only been tested with two.
-- **Sharing your recipe library.** Only shopping lists sync; recipes stay
-  per-device.
+- **Sharing your recipe library.** Only shopping lists sync; saved recipes
+  stay per-device. A recipe *added to a shared list* syncs fine, ingredients
+  and all — it's the library itself that doesn't.
+- **Sharing your custom grocery entries.** A custom item added to a shared
+  list reaches the other phone with its name, quantity, and correct aisle, but
+  it won't appear in their autocomplete for future lists.
 - **Realtime push.** The app polls (every 2.5s in shopping mode, 12s
   otherwise). Supabase supports true realtime over websockets, which would cut
   latency to well under a second; it's a client-only change if the polling ever

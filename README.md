@@ -20,13 +20,13 @@ npm start          # python3 -m http.server 8080
 Any static server works (`npx http-server`, `php -S`, nginx, GitHub Pages…).
 
 ```bash
-npm test           # 65 tests over the DOM-free core, via node:test — no dependencies
+npm test           # 70 tests over the DOM-free core, via node:test — no dependencies
 
 npm start             # then, with the server up and Playwright installed:
 npm run test:e2e      # 13-step browser walkthrough of the main flows
 
 npm run sync-server   # mock backend on :8787, then:
-npm run test:sharing  # 9-step two-browser sharing walkthrough
+npm run test:sharing  # 10-step two-browser sharing walkthrough
 ```
 
 The sharing tests run two independent browser contexts — separate storage, so
@@ -165,6 +165,11 @@ classic sync bug, and the one `tests/sync.test.js` guards hardest.
 
 **A record the server has never seen is an addition, not a deletion.** Getting
 that backwards silently eats anything added while offline.
+
+Items also carry a denormalized `category` and `emoji`. The grocery database is
+per-device, so an item pointing at a custom entry the other phone has never
+seen would otherwise land in "Other" with a placeholder icon — which would
+undercut the aisle grouping that makes shopping mode worth using.
 
 Merging is order-independent: whoever syncs first, both devices converge on the
 same state. There's a test for exactly that.

@@ -110,6 +110,30 @@ await step('an item added on phone B appears on phone A', async () => {
   );
 });
 
+await step('a custom item reaches the other phone in the right aisle', async () => {
+  // Her grocery database never learns of my custom entry, so the item has to
+  // carry its own aisle — otherwise it lands in "Other" on her phone.
+  await mine.locator('.search-input').fill('dragonfruit powder');
+  await mine.waitForSelector('.search-result-new');
+  await mine.locator('.search-result-new').click();
+  await mine.waitForSelector('.category-grid');
+  await mine.getByRole('button', { name: 'Pantry', exact: true }).click();
+
+  await waitFor(
+    hers,
+    () => [...document.querySelectorAll('.item-name')]
+      .some((el) => el.textContent === 'Dragonfruit Powder'),
+    { message: 'the custom item to reach phone B' },
+  );
+
+  const aisle = await hers.evaluate(() => {
+    const row = [...document.querySelectorAll('.item-row')]
+      .find((r) => r.querySelector('.item-name')?.textContent === 'Dragonfruit Powder');
+    return row?.querySelector('.item-category')?.textContent;
+  });
+  if (aisle !== 'Pantry') throw new Error(`phone B filed it under: ${aisle}`);
+});
+
 await step('check-offs sync both ways in shopping mode', async () => {
   await mine.getByRole('button', { name: 'Start shopping' }).click();
   await mine.waitForSelector('.shop-line');

@@ -28,21 +28,35 @@ export function createList(name) {
   };
 }
 
+/**
+ * `dbEntry` is the full database record when adding from search. `dbEntryId`,
+ * `category`, and `emoji` are the flat form — used when rehydrating a saved
+ * recipe's ingredient or an item that arrived from another device.
+ *
+ * `category`/`emoji` are denormalized on purpose: the grocery database is
+ * per-device, so an item referencing a custom entry the other phone has never
+ * seen still knows which aisle it belongs in.
+ */
 export function createItem({
   dbEntry = null,
+  dbEntryId = null,
   name = '',
   quantity = 1,
   unit = null,
   unitLabel = null,
+  category = null,
+  emoji = null,
   recipeId = null,
 } = {}) {
   return {
     id: uuid(),
-    dbEntryId: dbEntry ? dbEntry.id : null,
+    dbEntryId: dbEntry ? dbEntry.id : (dbEntryId ?? null),
     name: dbEntry ? dbEntry.name : name.trim(),
     quantity: Number(quantity) || 1,
     unit: unit ?? (dbEntry ? defaultUnitFor(dbEntry) : DEFAULT_UNIT),
     unitLabel: unitLabel ?? null,
+    category: dbEntry ? dbEntry.category : category,
+    emoji: dbEntry ? dbEntry.emoji : emoji,
     checked: false,
     recipeId,
     updatedAt: now(),
@@ -88,6 +102,8 @@ export function toIngredient(item) {
     quantity: Number(item.quantity) || 1,
     unit: item.unit ?? DEFAULT_UNIT,
     unitLabel: item.unitLabel ?? null,
+    category: item.category ?? null,
+    emoji: item.emoji ?? null,
   };
 }
 

@@ -114,10 +114,19 @@ function titleCase(value) {
   return value.replace(/\b[a-z]/g, (char) => char.toUpperCase());
 }
 
-/** Category to show for a list item, falling back for freeform/orphaned rows. */
+/**
+ * Category to show for a list item.
+ *
+ * Precedence matters: this device's database entry wins, because it reflects
+ * any renaming or recategorizing done here. Failing that we trust the snapshot
+ * carried on the item itself — which is what makes an item referencing another
+ * person's custom entry land in the right aisle instead of "Other". Only then
+ * do we fall back to matching by name.
+ */
 export function categoryOf(db, item) {
   const entry = getEntry(db, item.dbEntryId);
   if (entry) return entry.category;
+  if (item.category) return item.category;
   const matched = matchEntry(db, item.name);
   return matched ? matched.category : OTHER_CATEGORY;
 }
@@ -126,6 +135,9 @@ export function categoryOf(db, item) {
 export function emojiOf(db, item) {
   const entry = getEntry(db, item.dbEntryId);
   if (entry) return entry.emoji;
+  // A `category` on the item means it carries a snapshot, so a null emoji
+  // there is a real "this item has no emoji" rather than missing data.
+  if (item.category) return item.emoji ?? null;
   const matched = matchEntry(db, item.name);
   return matched ? matched.emoji : null;
 }

@@ -19,7 +19,7 @@ import {
   visibleRecipeItems,
 } from '../core/model.js';
 import { now } from '../core/id.js';
-import { createCustomEntry, defaultUnitFor } from '../core/groceryDb.js';
+import { createCustomEntry } from '../core/groceryDb.js';
 import { OTHER_CATEGORY } from '../core/categories.js';
 
 // --- Lists -----------------------------------------------------------------
@@ -236,13 +236,7 @@ export async function updateRecipeIngredients(recipeId, mutator) {
 
 export async function addIngredientToDefinition(recipeId, { dbEntry = null, name = '' }) {
   return updateRecipeIngredients(recipeId, (draft) => {
-    draft.ingredients.push({
-      dbEntryId: dbEntry ? dbEntry.id : null,
-      name: dbEntry ? dbEntry.name : name.trim(),
-      quantity: 1,
-      unit: defaultUnitFor(dbEntry),
-      unitLabel: null,
-    });
+    draft.ingredients.push(toIngredient(createItem({ dbEntry, name })));
   });
 }
 
