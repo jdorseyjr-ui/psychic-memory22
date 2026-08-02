@@ -6,6 +6,7 @@ const ROUTES = [
   { pattern: /^\/?$/, build: () => ({ name: 'lists', params: {} }) },
   { pattern: /^\/lists$/, build: () => ({ name: 'lists', params: {} }) },
   { pattern: /^\/recipes$/, build: () => ({ name: 'recipeLibrary', params: {} }) },
+  { pattern: /^\/join\/([^/]+)$/, build: (m) => ({ name: 'join', params: { shareCode: m[1] } }) },
   { pattern: /^\/recipes\/([^/]+)$/, build: (m) => ({ name: 'recipeDetail', params: { recipeId: m[1] } }) },
   { pattern: /^\/list\/([^/]+)\/shop$/, build: (m) => ({ name: 'shopping', params: { listId: m[1] } }) },
   { pattern: /^\/list\/([^/]+)$/, build: (m) => ({ name: 'listEdit', params: { listId: m[1] } }) },
@@ -51,4 +52,5 @@ export const paths = {
   shopping: (id) => `/list/${encodeURIComponent(id)}/shop`,
   recipes: () => '/recipes',
   recipe: (id) => `/recipes/${encodeURIComponent(id)}`,
+  join: (code) => `/join/${encodeURIComponent(code)}`,
 };

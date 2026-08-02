@@ -55,4 +55,11 @@ export const iconMore = () =>
   );
 export const iconPencil = () =>
   icon('icon-pencil', path('M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z'), path('M14.5 6.5l3 3'));
+export const iconShare = () =>
+  icon(
+    'icon-share',
+    path('M12 3v13'),
+    path('M8 7l4-4 4 4'),
+    path('M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6'),
+  );
 export const iconClose = () => icon('icon-close', path('M6 6l12 12'), path('M18 6L6 18'));

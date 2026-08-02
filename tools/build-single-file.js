@@ -17,6 +17,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Dependency order: a module may only reference ones already listed above it. */
 const MODULES = [
+  'src/config.js',
   'src/core/text.js',
   'src/core/categories.js',
   'src/core/units.js',
@@ -25,12 +26,16 @@ const MODULES = [
   'src/core/groceryDb.js',
   'src/core/model.js',
   'src/core/dataStore.js',
+  'src/core/sync/merge.js',
+  'src/core/sync/transport.js',
+  'src/core/sync/syncEngine.js',
   'src/ui/dom.js',
   'src/ui/icons.js',
   'src/ui/state.js',
   'src/ui/modal.js',
   'src/ui/actions.js',
   'src/ui/router.js',
+  'src/ui/sharing.js',
   'src/ui/components/addItemSearch.js',
   'src/ui/components/itemRow.js',
   'src/ui/components/recipeCard.js',
@@ -53,8 +58,11 @@ const NAMESPACES = {
     'deleteRecipe', 'saveCustomEntry', 'deleteCustomEntry', 'clearAll',
     'subscribe', 'flushNow',
   ],
+  transport: [
+    'createSharedList', 'pullList', 'pushList', 'generateShareCode',
+  ],
   actions: [
-    'addList', 'renameList', 'removeList', 'addItem', 'updateItem', 'removeItem',
+    'addList', 'adoptSharedList', 'setListShareCode', 'renameList', 'removeList', 'addItem', 'updateItem', 'removeItem',
     'setItemsChecked', 'setAllChecked', 'startRecipe', 'addSavedRecipe',
     'renameRecipeInstance', 'removeRecipeInstance', 'saveRecipeToLibrary',
     'renameRecipeDefinition', 'removeRecipeDefinition', 'updateRecipeIngredients',

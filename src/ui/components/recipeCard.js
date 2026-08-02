@@ -5,6 +5,7 @@
 
 import { h, pluralCount } from '../dom.js';
 import { ItemRow } from './itemRow.js';
+import { visibleRecipeItems } from '../../core/model.js';
 import { iconChevronDown, iconChevronRight, iconTrash, iconPlus, iconPencil } from '../icons.js';
 
 /**
@@ -28,6 +29,7 @@ export function RecipeCard({
   children = null,
 }) {
   const open = isBuilding || !collapsed;
+  const items = visibleRecipeItems(recipe);
 
   return h(
     'section',
@@ -51,9 +53,9 @@ export function RecipeCard({
           h(
             'span',
             { className: 'recipe-meta' },
-            recipe.items.length === 0
+            items.length === 0
               ? 'no ingredients yet'
-              : pluralCount(recipe.items.length, 'ingredient'),
+              : pluralCount(items.length, 'ingredient'),
           ),
         ),
       ),
@@ -100,11 +102,11 @@ export function RecipeCard({
       ? h(
           'div',
           { className: 'recipe-body' },
-          recipe.items.length > 0
+          items.length > 0
             ? h(
                 'ul',
                 { className: 'item-list item-list-nested' },
-                recipe.items.map((item) =>
+                items.map((item) =>
                   ItemRow({
                     item,
                     db,

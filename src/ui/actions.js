@@ -14,7 +14,11 @@ import {
   instantiateRecipe,
   toIngredient,
   findItem,
+  allRecords,
+  isLive,
+  visibleRecipeItems,
 } from '../core/model.js';
+import { now } from '../core/id.js';
 import { createCustomEntry, defaultUnitFor } from '../core/groceryDb.js';
 import { OTHER_CATEGORY } from '../core/categories.js';
 
@@ -32,8 +36,31 @@ export async function renameList(listId, name) {
   });
 }
 
+/** Attach a share code, marking the list as synced (see `core/sync/`). */
+export async function setListShareCode(listId, shareCode) {
+  return withList(listId, (list) => {
+    list.shareCode = shareCode;
+  });
+}
+
 export async function removeList(listId) {
   await dataStore.deleteList(listId);
+}
+
+/**
+ * Create the local half of a list joined from a share link. The server's list
+ * id is reused so both devices address the same rows; contents arrive on the
+ * first sync.
+ */
+export async function adoptSharedList({ id, name, shareCode, updatedAt }) {
+  const list = {
+    ...createList(name),
+    id,
+    shareCode,
+    updatedAt: updatedAt ?? now(),
+  };
+  await dataStore.saveList(list);
+  return list;
 }
 
 function currentList(listId) {
@@ -75,15 +102,20 @@ export async function updateItem(listId, itemId, patch) {
     if (!item) return;
     Object.assign(item, patch);
     if (patch.unit && patch.unit !== 'other') item.unitLabel = null;
+    item.updatedAt = now();
   });
 }
 
+/**
+ * Soft delete. The record stays as a tombstone so the other device learns the
+ * item is gone instead of pushing its own copy back (see `model.isLive`).
+ */
 export async function removeItem(listId, itemId) {
   return withList(listId, (list) => {
-    list.items = list.items.filter((item) => item.id !== itemId);
-    for (const recipe of list.recipes) {
-      recipe.items = recipe.items.filter((item) => item.id !== itemId);
-    }
+    const { item } = findItem(list, itemId);
+    if (!item) return;
+    item.deleted = true;
+    item.updatedAt = now();
   });
 }
 
@@ -91,16 +123,22 @@ export async function removeItem(listId, itemId) {
 export async function setItemsChecked(listId, itemIds, checked) {
   const targets = new Set(itemIds);
   return withList(listId, (list) => {
-    for (const item of [...list.items, ...list.recipes.flatMap((r) => r.items)]) {
-      if (targets.has(item.id)) item.checked = checked;
+    for (const item of allRecords(list).items) {
+      if (targets.has(item.id) && item.checked !== checked) {
+        item.checked = checked;
+        item.updatedAt = now();
+      }
     }
   });
 }
 
 export async function setAllChecked(listId, checked) {
   return withList(listId, (list) => {
-    for (const item of [...list.items, ...list.recipes.flatMap((r) => r.items)]) {
-      item.checked = checked;
+    for (const item of allRecords(list).items) {
+      if (isLive(item) && item.checked !== checked) {
+        item.checked = checked;
+        item.updatedAt = now();
+      }
     }
   });
 }
@@ -128,14 +166,29 @@ export async function addSavedRecipe(listId, definition) {
 export async function renameRecipeInstance(listId, recipeId, name) {
   return withList(listId, (list) => {
     const recipe = list.recipes.find((candidate) => candidate.id === recipeId);
-    if (recipe) recipe.name = name.trim() || recipe.name;
+    if (!recipe) return;
+    recipe.name = name.trim() || recipe.name;
+    recipe.updatedAt = now();
   });
 }
 
-/** Remove a recipe and its nested items; the library definition is untouched (spec §5.4). */
+/**
+ * Remove a recipe and its nested items; the library definition is untouched
+ * (spec §5.4). Tombstoned rather than spliced, and the ingredients are
+ * tombstoned individually so a device that only knows the items still drops
+ * them.
+ */
 export async function removeRecipeInstance(listId, recipeId) {
   return withList(listId, (list) => {
-    list.recipes = list.recipes.filter((recipe) => recipe.id !== recipeId);
+    const recipe = list.recipes.find((candidate) => candidate.id === recipeId);
+    if (!recipe) return;
+    const timestamp = now();
+    recipe.deleted = true;
+    recipe.updatedAt = timestamp;
+    for (const item of recipe.items) {
+      item.deleted = true;
+      item.updatedAt = timestamp;
+    }
   });
 }
 
@@ -147,11 +200,11 @@ export async function removeRecipeInstance(listId, recipeId) {
 export async function saveRecipeToLibrary(listId, recipeId) {
   const list = currentList(listId);
   const recipe = list?.recipes.find((candidate) => candidate.id === recipeId);
-  if (!recipe || recipe.items.length === 0) return null;
+  if (!recipe || visibleRecipeItems(recipe).length === 0) return null;
 
   const definition = createRecipeDefinition({
     name: recipe.name,
-    ingredients: recipe.items.map(toIngredient),
+    ingredients: visibleRecipeItems(recipe).map(toIngredient),
   });
   await dataStore.saveRecipe(definition);
   await withList(listId, (draft) => {

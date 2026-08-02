@@ -973,6 +973,9 @@ select {
 .sheet-message {
   color: var(--ink-muted);
   font-size: 0.92rem;
+  /* Share links are pasted in with newlines and must not run together. */
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .sheet-label {
@@ -1118,4 +1121,55 @@ select {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* --- Sharing ------------------------------------------------------------ */
+
+.sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: 0 0 auto;
+}
+
+.sync-badge-syncing .sync-dot {
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.sync-badge-offline .sync-dot {
+  background: var(--ink-faint);
+}
+
+.sync-badge-error .sync-dot {
+  background: var(--danger);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.share-link {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  word-break: break-all;
 }

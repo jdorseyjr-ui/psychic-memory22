@@ -13,9 +13,10 @@ import { confirmAction } from '../modal.js';
 import * as actions from '../actions.js';
 import { navigate, paths } from '../router.js';
 import { iconBack, iconCheck } from '../icons.js';
+import { SyncBadge } from '../sharing.js';
 
 export function ShoppingScreen({ listId }) {
-  const { data, db } = getState();
+  const { data, db, sync } = getState();
   const list = data.lists.find((candidate) => candidate.id === listId);
 
   if (!list) {
@@ -77,6 +78,7 @@ export function ShoppingScreen({ listId }) {
           { className: 'progress-label' },
           done ? 'All picked up 🎉' : `${checked} of ${items.length} picked up`,
         ),
+        SyncBadge({ list, sync }),
       ),
     ),
 

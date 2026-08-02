@@ -14,12 +14,20 @@ import { RecipeCard } from '../components/recipeCard.js';
 import { promptText, confirmAction, chooseOption, pickCategory } from '../modal.js';
 import * as actions from '../actions.js';
 import { navigate, paths } from '../router.js';
-import { itemCount, checkedCount } from '../../core/model.js';
+import {
+  itemCount,
+  checkedCount,
+  visibleItems,
+  visibleRecipes,
+  visibleRecipeItems,
+} from '../../core/model.js';
 import { categoryLabel } from '../../core/categories.js';
-import { iconBack, iconCart, iconPlus, iconCheck } from '../icons.js';
+import { iconBack, iconCart, iconPlus, iconCheck, iconShare } from '../icons.js';
+import { shareList, copyToClipboard, SyncBadge } from '../sharing.js';
+import { isSharingConfigured } from '../../config.js';
 
-export function ListEditScreen({ listId }) {
-  const { data, db, building, afterRecipePrompt } = getState();
+export function ListEditScreen({ listId, engine }) {
+  const { data, db, building, afterRecipePrompt, sync } = getState();
   const list = data.lists.find((candidate) => candidate.id === listId);
 
   if (!list) return MissingList();
@@ -31,6 +39,8 @@ export function ListEditScreen({ listId }) {
 
   const total = itemCount(list);
   const checked = checkedCount(list);
+  const standalone = visibleItems(list);
+  const recipes = visibleRecipes(list);
 
   return h(
     'div',
@@ -68,12 +78,25 @@ export function ListEditScreen({ listId }) {
           },
           list.name,
         ),
+        isSharingConfigured()
+          ? h(
+              'button',
+              {
+                className: 'icon-btn icon-btn-lg',
+                type: 'button',
+                'aria-label': list.shareCode ? 'Share link' : 'Share this list',
+                onClick: () => shareFlow(list, engine),
+              },
+              iconShare(),
+            )
+          : null,
       ),
       h(
         'p',
         { className: 'app-subtitle' },
         total === 0 ? 'Empty list' : pluralCount(total, 'item'),
         checked > 0 ? ` · ${checked} checked off` : '',
+        SyncBadge({ list, sync }),
       ),
     ),
 
@@ -114,11 +137,11 @@ export function ListEditScreen({ listId }) {
           )
         : null,
 
-      list.items.length > 0
+      standalone.length > 0
         ? h(
             'ul',
             { className: 'item-list' },
-            list.items.map((item) =>
+            standalone.map((item) =>
               ItemRow({
                 item,
                 db,
@@ -130,7 +153,7 @@ export function ListEditScreen({ listId }) {
           )
         : null,
 
-      list.recipes.map((recipe) => RecipeSection(list, recipe, buildingRecipe)),
+      recipes.map((recipe) => RecipeSection(list, recipe, buildingRecipe)),
     ),
 
     h(
@@ -197,8 +220,8 @@ function RecipeSection(list, recipe, buildingRecipe) {
       const confirmed = await confirmAction({
         title: `Remove “${recipe.name}” from this list?`,
         message:
-          recipe.items.length > 0
-            ? `Its ${pluralCount(recipe.items.length, 'ingredient')} will be removed too. The saved recipe stays in your library.`
+          visibleRecipeItems(recipe).length > 0
+            ? `Its ${pluralCount(visibleRecipeItems(recipe).length, 'ingredient')} will be removed too. The saved recipe stays in your library.`
             : 'The saved recipe stays in your library.',
         confirmLabel: 'Remove',
         danger: true,
@@ -341,7 +364,7 @@ async function endRecipe(list, recipe) {
   const { building } = getState();
 
   // An abandoned, empty recipe would just be clutter on the list.
-  if (recipe.items.length === 0) {
+  if (visibleRecipeItems(recipe).length === 0) {
     setState({ building: null, afterRecipePrompt: null });
     if (building?.isNew) await actions.removeRecipeInstance(list.id, recipe.id);
     return;
@@ -374,6 +397,25 @@ async function createCustomItem(listId, text, recipeId) {
   await actions.addItem(listId, { dbEntry: entry, recipeId });
   showToast(`Saved “${entry.name}” to ${categoryLabel(category)}`);
   focusSearch(recipeId ? `recipe:${recipeId}` : `list:${listId}`);
+}
+
+/** Create the link if needed, then show it with a copy button. */
+async function shareFlow(list, engine) {
+  const link = await shareList(list, { engine });
+  if (!link) return;
+
+  const copied = await copyToClipboard(link);
+  await showShareSheet(list, link, copied);
+}
+
+async function showShareSheet(list, link, copied) {
+  await confirmAction({
+    title: copied ? 'Link copied' : `Share “${list.name}”`,
+    message: copied
+      ? `Paste it to whoever you shop with. Both of you will see the same list, and check-offs sync live.\n\n${link}`
+      : `Send this link to whoever you shop with:\n\n${link}`,
+    confirmLabel: 'Done',
+  });
 }
 
 function focusListSearch(listId) {

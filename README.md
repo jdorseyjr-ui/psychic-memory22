@@ -20,11 +20,18 @@ npm start          # python3 -m http.server 8080
 Any static server works (`npx http-server`, `php -S`, nginx, GitHub Pages…).
 
 ```bash
-npm test           # 28 tests over the DOM-free core, via node:test — no dependencies
+npm test           # 65 tests over the DOM-free core, via node:test — no dependencies
 
-npm start          # then, with the server up and Playwright installed:
-npm run test:e2e   # 13-step browser walkthrough of the main flows
+npm start             # then, with the server up and Playwright installed:
+npm run test:e2e      # 13-step browser walkthrough of the main flows
+
+npm run sync-server   # mock backend on :8787, then:
+npm run test:sharing  # 9-step two-browser sharing walkthrough
 ```
+
+The sharing tests run two independent browser contexts — separate storage, so
+genuinely two "phones" — against a mock backend that implements the same
+last-write-wins rules as `db/schema.sql`. No Supabase account needed.
 
 ### Single-file build
 
@@ -70,6 +77,12 @@ personal library, so you can drop the whole ingredient list onto any future
 list in one tap. Editing a recipe on a list only changes that list's copy — the
 library definition is left alone, and vice versa.
 
+**Shared lists** — optional, off until configured. Share a list by link and
+two phones stay in sync, including check-offs while you're both in the store.
+Local-first: every edit saves instantly and uploads in the background, so bad
+signal in a store never blocks you. Set it up in about ten minutes —
+see [docs/sharing-setup.md](docs/sharing-setup.md).
+
 **Shopping mode** — regroups the list by aisle instead of by recipe, merges
 duplicates across recipes and standalone items into single lines (1 dozen eggs
 + 2 eggs from a recipe → 14 eggs), and gives every line a big tap target.
@@ -83,8 +96,13 @@ index.html          shell
 styles.css          all styles (mobile-first, ~600 lines)
 src/
   app.js            entry point: storage → state → render
+  config.js         Supabase URL + key; blank means local-only
   core/             DOM-free logic, unit-tested
     dataStore.js      data-access layer — the only module that touches localStorage
+    sync/
+      merge.js        conflict resolution — per record, last write wins
+      syncEngine.js   pull → merge → push, with backoff and offline handling
+      transport.js    the only module that touches the network
     groceryDb.js      matching, ranking, custom-entry creation
     model.js          record factories + the shopping-mode merge/grouping view
     text.js           normalization, singular/plural handling
@@ -99,9 +117,12 @@ src/
     router.js         hash routing
     dom.js            element helper + focus preservation
     modal.js          promise-based sheets (prompt/confirm/choose/pick-category)
+    sharing.js        share + join flows, sync status badge
     components/       ItemRow, RecipeCard, AddItemSearch, ListCard
     screens/          lists, list edit, shopping, recipe library
-tests/run.js        core logic tests
+db/schema.sql       Supabase tables, RPCs, and lockdown
+tests/              core, merge, and sync-engine tests
+tools/              single-file build, mock sync server, browser walkthroughs
 ```
 
 Two conventions matter:
@@ -130,6 +151,24 @@ are persisted, which is a few KB for realistic use. If that changes (photos,
 long history, structured queries), `dataStore.js` is the one file that has to
 change.
 
+### How sync stays correct
+
+Three decisions carry most of the weight:
+
+**Records merge individually, not whole lists.** Each item is its own row with
+its own timestamp, so two people checking off different things is not a
+conflict — both survive. Merging whole lists would force one of you to lose.
+
+**Deletes leave tombstones.** A deleted record is kept, invisible, for 30 days.
+Without that, the other phone's stale copy pushes the item straight back — the
+classic sync bug, and the one `tests/sync.test.js` guards hardest.
+
+**A record the server has never seen is an addition, not a deletion.** Getting
+that backwards silently eats anything added while offline.
+
+Merging is order-independent: whoever syncs first, both devices converge on the
+same state. There's a test for exactly that.
+
 ## Deviations from the spec
 
 Two fields were added to the documented model:
@@ -142,7 +181,11 @@ Two fields were added to the documented model:
 Categories were extended past the listed set with `seafood`, `beverages`,
 `snacks`, `household`, and `other` (§4.2 ends its list with "etc.").
 
-## Out of scope for v1
+## Scope changes since v1
 
-Accounts and sync (structured for, not built), recipe scaling, barcode
-scanning, list sharing, and price tracking — per §9 of the spec.
+§9 of the spec deferred list sharing and multi-device sync. Both are now built
+(opt-in, off by default) at the user's request — the `dataStore` seam from §2 is
+what made it a contained change rather than a rewrite.
+
+Still out of scope: user accounts, recipe quantity scaling, barcode scanning,
+price tracking, and store-specific aisle numbers.

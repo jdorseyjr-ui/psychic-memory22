@@ -3,7 +3,7 @@
  *
  * Needs Playwright installed and the app served:
  *   npm start                # in one terminal
- *   node tests/e2e.mjs       # in another
+ *   node tools/e2e.mjs       # in another
  *
  * Kept out of `npm test` so the default suite stays dependency-free.
  */

@@ -1,0 +1,57 @@
+name: Deploy to GitHub Pages
+
+# The app has no build step, so this just uploads the repo as a static site.
+# Auto-deploys on push to the default branch; use "Run workflow" in the Actions
+# tab to deploy any other branch.
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run tests
+        run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail if Supabase credentials are missing
+        run: |
+          if ! grep -qE "^export const SUPABASE_URL = '.+';" src/config.js; then
+            echo "src/config.js has no Supabase URL — sharing will be disabled on the"
+            echo "deployed site. Fill it in (see README) or remove this check."
+            exit 1
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

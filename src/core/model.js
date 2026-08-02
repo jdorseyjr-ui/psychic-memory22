@@ -23,6 +23,8 @@ export function createList(name) {
     recipes: [],
     createdAt: timestamp,
     updatedAt: timestamp,
+    /** Set once the list is shared; the secret that grants access (§ sharing). */
+    shareCode: null,
   };
 }
 
@@ -43,6 +45,8 @@ export function createItem({
     unitLabel: unitLabel ?? null,
     checked: false,
     recipeId,
+    updatedAt: now(),
+    deleted: false,
   };
 }
 
@@ -52,7 +56,16 @@ export function createRecipeInstance({ name, recipeDefId = null, items = [] }) {
     id,
     recipeDefId,
     name: name.trim() || 'Untitled recipe',
-    items: items.map((item) => ({ ...item, id: uuid(), recipeId: id, checked: false })),
+    items: items.map((item) => ({
+      ...item,
+      id: uuid(),
+      recipeId: id,
+      checked: false,
+      updatedAt: now(),
+      deleted: false,
+    })),
+    updatedAt: now(),
+    deleted: false,
   };
 }
 
@@ -89,9 +102,44 @@ export function instantiateRecipe(definition) {
 
 // --- Derived views ---------------------------------------------------------
 
-/** Every item on a list: standalone first, then each recipe's ingredients. */
+/**
+ * Deleted records are kept as tombstones so a delete on one device isn't
+ * resurrected by another device's stale copy. Everything user-facing goes
+ * through these filters; only the sync layer sees tombstones.
+ */
+export function isLive(record) {
+  return !record.deleted;
+}
+
+/** Standalone items still on the list. */
+export function visibleItems(list) {
+  return list.items.filter(isLive);
+}
+
+/** Recipes still on the list. */
+export function visibleRecipes(list) {
+  return list.recipes.filter(isLive);
+}
+
+/** A recipe's surviving ingredients. */
+export function visibleRecipeItems(recipe) {
+  return recipe.items.filter(isLive);
+}
+
+/** Every live item on a list: standalone first, then each recipe's ingredients. */
 export function allItems(list) {
-  return [...list.items, ...list.recipes.flatMap((recipe) => recipe.items)];
+  return [
+    ...visibleItems(list),
+    ...visibleRecipes(list).flatMap((recipe) => visibleRecipeItems(recipe)),
+  ];
+}
+
+/** Every record including tombstones — for the sync layer only. */
+export function allRecords(list) {
+  return {
+    items: [...list.items, ...list.recipes.flatMap((recipe) => recipe.items)],
+    recipes: list.recipes,
+  };
 }
 
 export function itemCount(list) {
@@ -102,12 +150,13 @@ export function checkedCount(list) {
   return allItems(list).filter((item) => item.checked).length;
 }
 
-/** Find an item anywhere on the list, along with its owning recipe (if any). */
+/** Find a live item anywhere on the list, along with its owning recipe (if any). */
 export function findItem(list, itemId) {
-  const standalone = list.items.find((item) => item.id === itemId);
+  const standalone = list.items.find((item) => item.id === itemId && isLive(item));
   if (standalone) return { item: standalone, recipe: null };
   for (const recipe of list.recipes) {
-    const found = recipe.items.find((item) => item.id === itemId);
+    if (!isLive(recipe)) continue;
+    const found = recipe.items.find((item) => item.id === itemId && isLive(item));
     if (found) return { item: found, recipe };
   }
   return { item: null, recipe: null };
