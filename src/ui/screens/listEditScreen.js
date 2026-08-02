@@ -20,6 +20,7 @@ import {
   visibleItems,
   visibleRecipes,
   visibleRecipeItems,
+  isLive,
 } from '../../core/model.js';
 import { categoryLabel } from '../../core/categories.js';
 import { iconBack, iconCart, iconPlus, iconCheck, iconShare } from '../icons.js';
@@ -306,7 +307,7 @@ function AfterRecipePrompt(list) {
 
 async function addRecipeFlow(list, { forceNew = false } = {}) {
   const { data } = getState();
-  const saved = data.recipes;
+  const saved = data.recipes.filter(isLive);
 
   let choice = 'new';
   if (!forceNew && saved.length > 0) {

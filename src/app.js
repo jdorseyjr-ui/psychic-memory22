@@ -103,7 +103,7 @@ function syncFromStore(snapshot, changed) {
 
   // A local edit should reach the other device promptly, but a burst of
   // keystrokes shouldn't mean a request each.
-  if (engine && !syncWriting && changed?.has('lists')) {
+  if (engine && !syncWriting && (changed?.has('lists') || changed?.has('recipes') || changed?.has('customEntries'))) {
     clearTimeout(pushTimer);
     pushTimer = setTimeout(() => engine.syncNow(), 700);
   }
@@ -119,6 +119,22 @@ function startSync() {
       syncWriting = true;
       try {
         await dataStore.saveList(list);
+      } finally {
+        syncWriting = false;
+      }
+    },
+
+    getHousehold: () => ({
+      householdCode: dataStore.getSetting('householdCode'),
+      recipes: dataStore.snapshot().recipes,
+      entries: dataStore.snapshot().customEntries,
+    }),
+
+    saveHousehold: async ({ recipes, entries }) => {
+      syncWriting = true;
+      try {
+        for (const recipe of recipes) await dataStore.saveRecipe(recipe);
+        for (const entry of entries) await dataStore.saveCustomEntry(entry);
       } finally {
         syncWriting = false;
       }

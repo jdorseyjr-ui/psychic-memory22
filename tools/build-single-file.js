@@ -56,10 +56,11 @@ const NAMESPACES = {
     'init', 'isEphemeral', 'getLists', 'getList', 'getRecipes', 'getRecipe',
     'getCustomEntries', 'snapshot', 'saveList', 'deleteList', 'saveRecipe',
     'deleteRecipe', 'saveCustomEntry', 'deleteCustomEntry', 'clearAll',
-    'subscribe', 'flushNow',
+    'subscribe', 'flushNow', 'getSetting', 'setSetting',
   ],
   transport: [
     'createSharedList', 'pullList', 'pushList', 'generateShareCode',
+    'pullHousehold', 'pushHousehold',
   ],
   actions: [
     'addList', 'adoptSharedList', 'setListShareCode', 'renameList', 'removeList', 'addItem', 'updateItem', 'removeItem',

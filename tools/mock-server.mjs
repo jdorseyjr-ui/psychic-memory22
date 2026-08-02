@@ -15,6 +15,13 @@ const PORT = Number(process.env.PORT ?? 8787);
 
 /** shareCode -> { id, name, updatedAt, items: Map, recipes: Map } */
 const lists = new Map();
+/** householdCode -> { recipes: Map, entries: Map } */
+const households = new Map();
+
+function household(code) {
+  if (!households.has(code)) households.set(code, { recipes: new Map(), entries: new Map() });
+  return households.get(code);
+}
 
 const newer = (a, b) => Date.parse(a ?? 0) > Date.parse(b ?? 0);
 
@@ -58,6 +65,21 @@ const handlers = {
 
   pull_list({ p_share_code }) {
     return { body: snapshot(p_share_code) };
+  },
+
+  pull_household({ p_household_code }) {
+    const row = household(p_household_code);
+    return { body: { recipes: [...row.recipes.values()], entries: [...row.entries.values()] } };
+  },
+
+  push_household({ p_household_code, p_recipes, p_entries }) {
+    if (!p_household_code || p_household_code.length < 20) {
+      return { error: 'household code too short', status: 400 };
+    }
+    const row = household(p_household_code);
+    upsertAll(row.recipes, p_recipes);
+    upsertAll(row.entries, p_entries);
+    return { body: { recipes: [...row.recipes.values()], entries: [...row.entries.values()] } };
   },
 
   push_list({ p_share_code, p_name, p_updated_at, p_items, p_recipes }) {

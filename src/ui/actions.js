@@ -217,7 +217,9 @@ export async function saveRecipeToLibrary(listId, recipeId) {
 // --- Recipe library --------------------------------------------------------
 
 export async function renameRecipeDefinition(recipeId, name) {
-  const definition = dataStore.snapshot().recipes.find((recipe) => recipe.id === recipeId);
+  const definition = dataStore.snapshot().recipes.find(
+    (recipe) => recipe.id === recipeId && isLive(recipe),
+  );
   if (!definition) return null;
   return dataStore.saveRecipe({ ...structuredClone(definition), name: name.trim() || definition.name });
 }
@@ -227,7 +229,9 @@ export async function removeRecipeDefinition(recipeId) {
 }
 
 export async function updateRecipeIngredients(recipeId, mutator) {
-  const definition = dataStore.snapshot().recipes.find((recipe) => recipe.id === recipeId);
+  const definition = dataStore.snapshot().recipes.find(
+    (recipe) => recipe.id === recipeId && isLive(recipe),
+  );
   if (!definition) return null;
   const draft = structuredClone(definition);
   mutator(draft);

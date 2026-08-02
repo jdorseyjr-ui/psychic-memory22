@@ -16,7 +16,7 @@
  * and asserts they converge.
  */
 
-import { mergeList, purgeTombstones } from './merge.js';
+import { mergeList, mergeRecordSets, purgeTombstones } from './merge.js';
 import { allRecords } from '../model.js';
 
 export const SyncStatus = {
@@ -33,6 +33,10 @@ export function createSyncEngine({
   transport,
   getLists,
   saveList,
+  // Household sync (recipe library + custom grocery entries) is optional; when
+  // these are omitted the engine syncs lists only.
+  getHousehold = null,
+  saveHousehold = null,
   onStatus = () => {},
   now = () => Date.now(),
 }) {
@@ -169,16 +173,77 @@ export function createSyncEngine({
     }
   }
 
-  /** Sync every shared list once. Never throws. */
+  /**
+   * Reconcile the paired household: the recipe library and custom grocery
+   * entries. Both are flat record sets, so the list merge rules apply directly.
+   */
+  let householdInFlight = null;
+
+  async function syncHousehold() {
+    if (!getHousehold || !saveHousehold) return { synced: false };
+    if (householdInFlight) return householdInFlight;
+
+    const run = (async () => {
+      const local = getHousehold();
+      if (!local?.householdCode) return { synced: false };
+
+      const remote = await transport.pullHousehold(local.householdCode);
+      const current = getHousehold();
+
+      const recipes = mergeRecordSets(current.recipes, remote?.recipes ?? []);
+      const entries = mergeRecordSets(current.entries, remote?.entries ?? []);
+      await saveHousehold({ recipes, entries });
+
+      // Push anything the server is missing or holds an older copy of.
+      const seen = new Map(
+        [...(remote?.recipes ?? []), ...(remote?.entries ?? [])].map((r) => [r.id, r.updatedAt]),
+      );
+      const stale = (record) => {
+        const known = seen.get(record.id);
+        return !known || Date.parse(record.updatedAt ?? 0) > Date.parse(known);
+      };
+
+      if (recipes.some(stale) || entries.some(stale)) {
+        const echoed = await transport.pushHousehold({
+          householdCode: local.householdCode,
+          recipes,
+          entries,
+        });
+        if (echoed) {
+          await saveHousehold({
+            recipes: mergeRecordSets(recipes, echoed.recipes ?? []),
+            entries: mergeRecordSets(entries, echoed.entries ?? []),
+          });
+        }
+      }
+
+      return { synced: true };
+    })();
+
+    householdInFlight = run;
+    try {
+      return await run;
+    } finally {
+      householdInFlight = null;
+    }
+  }
+
+  /** Sync every shared list, plus the household, once. Never throws. */
   async function syncAll() {
     const lists = sharedLists();
-    if (lists.length === 0) {
+    const household = getHousehold?.();
+    const hasWork = lists.length > 0 || Boolean(household?.householdCode);
+
+    if (!hasWork) {
       setStatus(SyncStatus.IDLE);
       return;
     }
 
     setStatus(SyncStatus.SYNCING);
-    const results = await Promise.allSettled(lists.map((list) => syncList(list.id)));
+    const results = await Promise.allSettled([
+      ...lists.map((list) => syncList(list.id)),
+      syncHousehold(),
+    ]);
     const failures = results.filter((result) => result.status === 'rejected');
 
     if (failures.length === 0) {
@@ -232,6 +297,7 @@ export function createSyncEngine({
     /** Force a round now — after a local edit, or on regaining focus. */
     syncNow: syncAll,
     syncList,
+    syncHousehold,
     getStatus: () => ({ status, lastSyncedAt }),
 
     /** Drop tombstones everyone has certainly seen. */

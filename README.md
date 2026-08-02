@@ -20,13 +20,14 @@ npm start          # python3 -m http.server 8080
 Any static server works (`npx http-server`, `php -S`, nginx, GitHub Pages…).
 
 ```bash
-npm test           # 70 tests over the DOM-free core, via node:test — no dependencies
+npm test           # 76 tests over the DOM-free core, via node:test — no dependencies
 
 npm start             # then, with the server up and Playwright installed:
 npm run test:e2e      # 13-step browser walkthrough of the main flows
 
+npm run test:dropdown # mobile autocomplete positioning
 npm run sync-server   # mock backend on :8787, then:
-npm run test:sharing  # 10-step two-browser sharing walkthrough
+npm run test:sharing  # 12-step two-browser sharing walkthrough
 ```
 
 The sharing tests run two independent browser contexts — separate storage, so
@@ -79,6 +80,7 @@ library definition is left alone, and vice versa.
 
 **Shared lists** — optional, off until configured. Share a list by link and
 two phones stay in sync, including check-offs while you're both in the store.
+The link also pairs the two devices' recipe libraries and custom grocery items.
 Local-first: every edit saves instantly and uploads in the background, so bad
 signal in a store never blocks you. Set it up in about ten minutes —
 see [docs/sharing-setup.md](docs/sharing-setup.md).

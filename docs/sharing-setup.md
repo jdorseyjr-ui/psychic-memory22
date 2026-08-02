@@ -23,7 +23,7 @@ offline, no share button anywhere.
    **Run**.
 3. It should report success with no rows. Running it twice is safe.
 
-This creates three tables and three functions, and locks the tables down —
+This creates five tables and five functions, and locks the tables down —
 see the security note below.
 
 ## 3. Paste two values into the app
@@ -47,6 +47,10 @@ Commit and push. That's it — every list now has a **Share** button.
   it's copied to your clipboard automatically.
 - **Join a list.** The other person opens the link on their phone. The list
   appears and stays in sync from then on.
+- **Everything else follows.** The link also pairs your two libraries, so saved
+  recipes and custom grocery items sync too — no second step. Nothing is
+  overwritten: both sides' recipes merge, so whoever joins keeps what they
+  already had.
 - **Both shop at once.** Both open shopping mode. Check-offs appear on the
   other phone within a couple of seconds.
 
@@ -80,6 +84,10 @@ push the item back; after that they're cleaned up.
 **A link stops working.** Your local copy is never destroyed by a sync failure.
 Worst case the list stops syncing and stays on your phone.
 
+**You share a link with a third person.** They join the same household, which
+means they also get your saved recipes and custom items. Fine for a couple;
+worth knowing before you forward a link to anyone else.
+
 ---
 
 ## Security, plainly
@@ -87,11 +95,11 @@ Worst case the list stops syncing and stays on your phone.
 The anon key sits in the client where anyone can read it. That's how Supabase
 is designed — but it means the key must not be what grants access, so it isn't:
 
-- Row-level security is **on** for all three tables, with **no policies**.
-  Direct table access is denied to everyone, including the anon key.
-- All access goes through three `SECURITY DEFINER` functions, each of which
-  requires the list's **share code**.
-- A share code is 128 bits of randomness. Guessing one is not feasible.
+- Row-level security is **on** for every table, with **no policies**. Direct
+  table access is denied to everyone, including the anon key.
+- All access goes through `SECURITY DEFINER` functions, each of which requires
+  either the list's **share code** or the **household code**.
+- Both codes are 128 bits of randomness. Guessing one is not feasible.
 
 So the share link is the credential. **Treat it like a house key**: anyone who
 has it can read and edit that one list — and nothing else, not your other
@@ -104,7 +112,7 @@ new list and share that instead. Say the word if you want proper revocation.
 
 ## Developing without Supabase
 
-There's a mock server implementing the same three functions in memory:
+There's a mock server implementing the same five functions in memory:
 
 ```bash
 npm start           # app on :8080
@@ -122,12 +130,10 @@ network and no account.
 - **Revoking or rotating a share link.**
 - **More than two people.** Nothing stops it — the design is n-way — but it's
   only been tested with two.
-- **Sharing your recipe library.** Only shopping lists sync; saved recipes
-  stay per-device. A recipe *added to a shared list* syncs fine, ingredients
-  and all — it's the library itself that doesn't.
-- **Sharing your custom grocery entries.** A custom item added to a shared
-  list reaches the other phone with its name, quantity, and correct aisle, but
-  it won't appear in their autocomplete for future lists.
+- **Un-pairing.** Once two devices share a household there's no button to
+  separate them again.
+- **Separate libraries per person.** Pairing merges them; there is no "mine"
+  vs "ours" split.
 - **Realtime push.** The app polls (every 2.5s in shopping mode, 12s
   otherwise). Supabase supports true realtime over websockets, which would cut
   latency to well under a second; it's a client-only change if the polling ever

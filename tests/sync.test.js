@@ -18,6 +18,7 @@ import { SyncError } from '../src/core/sync/transport.js';
 /** Mirrors the SQL: rows keyed by id, newer `updatedAt` wins. */
 function createFakeServer() {
   const lists = new Map(); // shareCode -> { id, name, updatedAt, items, recipes }
+  const households = new Map(); // householdCode -> { recipes, entries }
   let pulls = 0;
   let pushes = 0;
 
@@ -69,6 +70,22 @@ function createFakeServer() {
         return snapshotOf(shareCode);
       },
 
+      async pullHousehold(code) {
+        const row = households.get(code);
+        if (!row) return { recipes: [], entries: [] };
+        return { recipes: [...row.recipes.values()], entries: [...row.entries.values()] };
+      },
+
+      async pushHousehold({ householdCode, recipes, entries }) {
+        if (!households.has(householdCode)) {
+          households.set(householdCode, { recipes: new Map(), entries: new Map() });
+        }
+        const row = households.get(householdCode);
+        upsert(row.recipes, recipes);
+        upsert(row.entries, entries);
+        return { recipes: [...row.recipes.values()], entries: [...row.entries.values()] };
+      },
+
       async pushList({ shareCode, name, updatedAt, items, recipes }) {
         pushes += 1;
         const row = lists.get(shareCode);
@@ -88,8 +105,9 @@ function createFakeServer() {
 }
 
 /** A device: its own local store plus an engine pointed at the shared server. */
-function createPhone(server, seedList) {
+function createPhone(server, seedList, { householdCode = null } = {}) {
   const lists = [structuredClone(seedList)];
+  const library = { recipes: [], entries: [] };
 
   const engine = createSyncEngine({
     transport: server.transport,
@@ -99,10 +117,16 @@ function createPhone(server, seedList) {
       if (index === -1) lists.push(list);
       else lists[index] = list;
     },
+    getHousehold: () => ({ householdCode, recipes: library.recipes, entries: library.entries }),
+    saveHousehold: async ({ recipes, entries }) => {
+      library.recipes = recipes;
+      library.entries = entries;
+    },
   });
 
   return {
     engine,
+    library,
     get list() { return lists[0]; },
     names: () => allItems(lists[0]).map((item) => item.name).sort(),
     /** Apply a local edit the way the real actions layer would. */
@@ -436,4 +460,133 @@ test('three sync rounds across two phones converge to identical state', async ()
 
   assert.deepEqual(mine.names(), hers.names(), 'both phones agree');
   assert.deepEqual(mine.names(), ['Apples', 'Cheese']);
+});
+
+
+// --- household: recipe library + custom grocery entries --------------------
+
+const HOUSEHOLD = 'h'.repeat(32);
+
+function libraryRecipe(name, overrides = {}) {
+  return {
+    id: `recipe-${name}`,
+    name,
+    ingredients: [],
+    updatedAt: new Date().toISOString(),
+    deleted: false,
+    ...overrides,
+  };
+}
+
+function customEntry(name, overrides = {}) {
+  return {
+    id: `custom:${name}`,
+    name,
+    matchTerms: [name.toLowerCase()],
+    category: 'pantry',
+    emoji: null,
+    defaultUnit: 'count',
+    isCustom: true,
+    updatedAt: new Date().toISOString(),
+    deleted: false,
+    ...overrides,
+  };
+}
+
+test('a device with no household code never syncs a library', async () => {
+  const server = createFakeServer();
+  await seedServer(server);
+  const phone = createPhone(server, sharedList()); // householdCode defaults to null
+
+  phone.library.recipes.push(libraryRecipe('Tacos'));
+  await phone.engine.syncHousehold();
+
+  const remote = await server.transport.pullHousehold(HOUSEHOLD);
+  assert.deepEqual(remote.recipes, []);
+});
+
+test('a saved recipe reaches the paired device', async () => {
+  const server = createFakeServer();
+  await seedServer(server);
+
+  const mine = createPhone(server, sharedList(), { householdCode: HOUSEHOLD });
+  const hers = createPhone(server, sharedList(), { householdCode: HOUSEHOLD });
+
+  mine.library.recipes.push(libraryRecipe('Pancakes'));
+  await mine.engine.syncHousehold();
+  await hers.engine.syncHousehold();
+
+  assert.deepEqual(hers.library.recipes.map((r) => r.name), ['Pancakes']);
+});
+
+test('custom grocery entries reach the paired device', async () => {
+  const server = createFakeServer();
+  await seedServer(server);
+
+  const mine = createPhone(server, sharedList(), { householdCode: HOUSEHOLD });
+  const hers = createPhone(server, sharedList(), { householdCode: HOUSEHOLD });
+
+  mine.library.entries.push(customEntry('Dragonfruit Powder'));
+  await mine.engine.syncHousehold();
+  await hers.engine.syncHousehold();
+
+  assert.deepEqual(hers.library.entries.map((e) => e.name), ['Dragonfruit Powder']);
+  assert.equal(hers.library.entries[0].category, 'pantry');
+});
+
+test('libraries merge rather than one overwriting the other', async () => {
+  // Whoever joins keeps what they already had.
+  const server = createFakeServer();
+  await seedServer(server);
+
+  const mine = createPhone(server, sharedList(), { householdCode: HOUSEHOLD });
+  const hers = createPhone(server, sharedList(), { householdCode: HOUSEHOLD });
+
+  mine.library.recipes.push(libraryRecipe('Pancakes'));
+  hers.library.recipes.push(libraryRecipe('Chili'));
+
+  await mine.engine.syncHousehold();
+  await hers.engine.syncHousehold();
+  await mine.engine.syncHousehold();
+
+  assert.deepEqual(mine.library.recipes.map((r) => r.name).sort(), ['Chili', 'Pancakes']);
+  assert.deepEqual(hers.library.recipes.map((r) => r.name).sort(), ['Chili', 'Pancakes']);
+});
+
+test('a deleted recipe stays deleted on the paired device', async () => {
+  const server = createFakeServer();
+  await seedServer(server);
+
+  const mine = createPhone(server, sharedList(), { householdCode: HOUSEHOLD });
+  const hers = createPhone(server, sharedList(), { householdCode: HOUSEHOLD });
+
+  mine.library.recipes.push(libraryRecipe('Pancakes'));
+  await mine.engine.syncHousehold();
+  await hers.engine.syncHousehold();
+  assert.equal(hers.library.recipes.length, 1);
+
+  mine.library.recipes[0] = {
+    ...mine.library.recipes[0],
+    deleted: true,
+    updatedAt: new Date(Date.now() + 1000).toISOString(),
+  };
+  await mine.engine.syncHousehold();
+  await hers.engine.syncHousehold();
+  await mine.engine.syncHousehold();
+
+  assert.equal(hers.library.recipes[0].deleted, true);
+  assert.equal(mine.library.recipes[0].deleted, true, 'and is not resurrected');
+});
+
+test('a settled library stops re-uploading', async () => {
+  const server = createFakeServer();
+  await seedServer(server);
+  const phone = createPhone(server, sharedList(), { householdCode: HOUSEHOLD });
+
+  phone.library.recipes.push(libraryRecipe('Pancakes'));
+  await phone.engine.syncHousehold();
+  await phone.engine.syncHousehold();
+  await phone.engine.syncHousehold();
+
+  assert.equal(phone.library.recipes.length, 1, 'no duplication across rounds');
 });

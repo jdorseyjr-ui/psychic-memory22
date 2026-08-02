@@ -18,11 +18,12 @@ const KEYS = {
   lists: 'shoppinglist.lists.v1',
   recipes: 'shoppinglist.recipes.v1',
   customEntries: 'shoppinglist.customEntries.v1',
+  settings: 'shoppinglist.settings.v1',
 };
 
 const FLUSH_DELAY_MS = 120;
 
-const cache = { lists: [], recipes: [], customEntries: [] };
+const cache = { lists: [], recipes: [], customEntries: [], settings: {} };
 const dirty = new Set();
 const listeners = new Set();
 
@@ -38,6 +39,7 @@ export async function init() {
   cache.lists = readKey(KEYS.lists, []);
   cache.recipes = readKey(KEYS.recipes, []);
   cache.customEntries = readKey(KEYS.customEntries, []);
+  cache.settings = readKey(KEYS.settings, {}, { array: false });
   ready = true;
 
   // Anything queued while the tab is closing must not be lost.
@@ -83,7 +85,26 @@ export async function getCustomEntries() {
  * through the async writers above/below — this is read-only by convention.
  */
 export function snapshot() {
-  return { lists: cache.lists, recipes: cache.recipes, customEntries: cache.customEntries };
+  return {
+    lists: cache.lists,
+    recipes: cache.recipes,
+    customEntries: cache.customEntries,
+    settings: cache.settings,
+  };
+}
+
+/**
+ * Device-level settings (currently just the household code that pairs this
+ * device's recipe library and custom items with someone else's).
+ */
+export function getSetting(key) {
+  return cache.settings[key] ?? null;
+}
+
+export async function setSetting(key, value) {
+  cache.settings = { ...cache.settings, [key]: value };
+  queue('settings');
+  return value;
 }
 
 // --- Writes ----------------------------------------------------------------
@@ -107,8 +128,12 @@ export async function saveRecipe(recipe) {
   return record;
 }
 
+/**
+ * Tombstoned, not removed: a paired device has to learn the recipe is gone,
+ * otherwise its copy pushes it straight back.
+ */
 export async function deleteRecipe(id) {
-  remove(cache.recipes, id);
+  tombstone(cache.recipes, id);
   queue('recipes');
 }
 
@@ -120,7 +145,7 @@ export async function saveCustomEntry(entry) {
 }
 
 export async function deleteCustomEntry(id) {
-  remove(cache.customEntries, id);
+  tombstone(cache.customEntries, id);
   queue('customEntries');
 }
 
@@ -129,7 +154,8 @@ export async function clearAll() {
   cache.lists = [];
   cache.recipes = [];
   cache.customEntries = [];
-  queue('lists', 'recipes', 'customEntries');
+  cache.settings = {};
+  queue('lists', 'recipes', 'customEntries', 'settings');
 }
 
 // --- Change notification ---------------------------------------------------
@@ -160,6 +186,14 @@ function remove(collection, id) {
   if (index !== -1) collection.splice(index, 1);
 }
 
+function tombstone(collection, id) {
+  const record = collection.find((existing) => existing.id === id);
+  if (record) {
+    record.deleted = true;
+    record.updatedAt = now();
+  }
+}
+
 function queue(...names) {
   for (const name of names) dirty.add(name);
   notify(new Set(names));
@@ -188,13 +222,14 @@ function probeStorage() {
   }
 }
 
-function readKey(key, fallback) {
+function readKey(key, fallback, { array = true } = {}) {
   if (!storageAvailable) return fallback;
   try {
     const raw = window.localStorage.getItem(key);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : fallback;
+    if (array) return Array.isArray(parsed) ? parsed : fallback;
+    return parsed && typeof parsed === 'object' ? parsed : fallback;
   } catch {
     return fallback;
   }

@@ -91,6 +91,7 @@ export function createRecipeDefinition({ name, ingredients = [] }) {
     ingredients: ingredients.map(toIngredient),
     createdAt: timestamp,
     updatedAt: timestamp,
+    deleted: false,
   };
 }
 

@@ -167,14 +167,72 @@ await step('neither check-off was clobbered by the other', async () => {
   }
 });
 
-await step('a delete on phone A removes the item on phone B', async () => {
+await step('a recipe saved on phone A appears in phone B\'s library', async () => {
+  // The library is paired via the household code carried in the share link.
   await mine.getByRole('button', { name: 'Exit shopping mode' }).click();
+  await mine.waitForSelector('.search-input');
+  await mine.getByRole('button', { name: 'Add recipe' }).click();
+  await mine.locator('.sheet input.field').fill('Pancakes');
+  await mine.getByRole('button', { name: 'Start', exact: true }).click();
+  await mine.waitForSelector('.recipe-card.is-building');
+
+  for (const term of ['eggs', 'flour']) {
+    await mine.locator('.recipe-card .search-input').fill(term);
+    await mine.waitForSelector('.recipe-card .search-result');
+    await mine.keyboard.press('Enter');
+    await mine.waitForTimeout(80);
+  }
+  await mine.getByRole('button', { name: 'End recipe' }).click();
+  await mine.waitForSelector('.banner-choice');
+  await mine.getByRole('button', { name: 'Done' }).click();
+
+  // Poll the library screen until the recipe syncs across.
+  const started = Date.now();
+  for (;;) {
+    await hers.goto(BASE);
+    await hers.waitForSelector('.list-card');
+    await hers.getByRole('button', { name: 'Recipe library' }).click();
+    await hers.getByRole('heading', { name: 'Recipe Library' }).waitFor();
+
+    const names = await hers.locator('.list-card-name').allTextContents();
+    if (names.includes('Pancakes')) break;
+    if (Date.now() - started > 25000) throw new Error(`phone B library: ${names}`);
+    await hers.waitForTimeout(1500);
+  }
+});
+
+await step('a custom item added on A autocompletes on B', async () => {
+  // The custom grocery entry itself is paired, not just the list item.
+  const started = Date.now();
+  for (;;) {
+    await hers.goto(BASE);
+    await hers.locator('.list-card-main').first().click();
+    await hers.waitForSelector('.search-input');
+    await hers.locator('.search-input').fill('dragonfruit');
+    await hers.waitForTimeout(600);
+
+    const found = await hers.evaluate(() =>
+      [...document.querySelectorAll('.search-result-name')]
+        .some((el) => el.textContent === 'Dragonfruit Powder'),
+    );
+    if (found) break;
+    if (Date.now() - started > 25000) throw new Error('custom entry never reached phone B');
+    await hers.waitForTimeout(1500);
+  }
+  await hers.keyboard.press('Escape');
+});
+
+await step('a delete on phone A removes the item on phone B', async () => {
   await mine.waitForSelector('.item-row');
   await mine.getByRole('button', { name: 'Delete Apple' }).click();
 
   await waitFor(
     hers,
-    () => ![...document.querySelectorAll('.shop-name')].some((el) => el.textContent === 'Apple'),
+    () => {
+      const rows = [...document.querySelectorAll('.item-name, .shop-name')];
+      // Guard against asserting on an empty screen mid-navigation.
+      return rows.length > 0 && !rows.some((el) => el.textContent === 'Apple');
+    },
     { message: 'the delete to reach phone B' },
   );
 });
@@ -190,9 +248,8 @@ await step('the deleted item stays gone after another round', async () => {
 });
 
 await step('edits made offline reach the other phone on reconnect', async () => {
-  await hers.context().setOffline(true);
-  await hers.getByRole('button', { name: 'Exit shopping mode' }).click();
   await hers.waitForSelector('.search-input');
+  await hers.context().setOffline(true);
   await hers.locator('.search-input').fill('bananas');
   await hers.waitForSelector('.search-result');
   await hers.keyboard.press('Enter');

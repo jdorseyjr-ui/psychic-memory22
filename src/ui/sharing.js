@@ -11,13 +11,39 @@ import { getState, showToast } from './state.js';
 import { confirmAction } from './modal.js';
 import * as actions from './actions.js';
 import * as transport from '../core/sync/transport.js';
+import * as dataStore from '../core/dataStore.js';
 import { navigate, paths } from './router.js';
 import { isSharingConfigured } from '../config.js';
 
-/** The URL to text to the other person. */
-export function shareLink(shareCode) {
+/**
+ * The URL to text to the other person.
+ *
+ * It carries two secrets: the list's share code, and this device's household
+ * code. The household pairs the two recipe libraries and custom-item
+ * databases, so joining a list also joins the library — no second step.
+ */
+export function shareLink(shareCode, householdCode) {
   const { origin, pathname } = window.location;
-  return `${origin}${pathname}#/join/${shareCode}`;
+  const suffix = householdCode ? `~${householdCode}` : '';
+  return `${origin}${pathname}#/join/${shareCode}${suffix}`;
+}
+
+/** Split a join token back into its two codes. */
+export function parseJoinToken(token) {
+  const [shareCode, householdCode = null] = String(token).split('~');
+  return { shareCode, householdCode };
+}
+
+/**
+ * This device's household code, created on first use. Both devices end up on
+ * the sharer's code — see `joinList`.
+ */
+export async function ensureHouseholdCode() {
+  const existing = dataStore.getSetting('householdCode');
+  if (existing) return existing;
+  const code = transport.generateShareCode();
+  await dataStore.setSetting('householdCode', code);
+  return code;
 }
 
 /**
@@ -25,7 +51,8 @@ export function shareLink(shareCode) {
  * network refused — in which case the list stays local and unchanged.
  */
 export async function shareList(list, { engine }) {
-  if (list.shareCode) return shareLink(list.shareCode);
+  const householdCode = await ensureHouseholdCode();
+  if (list.shareCode) return shareLink(list.shareCode, householdCode);
 
   const confirmed = await confirmAction({
     title: `Share “${list.name}”?`,
@@ -49,14 +76,23 @@ export async function shareList(list, { engine }) {
 
   await actions.setListShareCode(list.id, shareCode);
   engine?.syncNow();
-  return shareLink(shareCode);
+  return shareLink(shareCode, householdCode);
 }
 
 /**
  * Adopt a shared list from a link. If this device already has it, just open
  * it rather than creating a duplicate.
  */
-export async function joinList(shareCode, { engine }) {
+export async function joinList(token, { engine }) {
+  const { shareCode, householdCode } = parseJoinToken(token);
+
+  // Adopt the sharer's household so both devices' libraries live in one place.
+  // Anything already saved here uploads into it on the next sync rather than
+  // being lost.
+  if (householdCode && dataStore.getSetting('householdCode') !== householdCode) {
+    await dataStore.setSetting('householdCode', householdCode);
+  }
+
   const existing = getState().data.lists.find((list) => list.shareCode === shareCode);
   if (existing) {
     navigate(paths.list(existing.id));

@@ -11,11 +11,12 @@ import { ItemRow } from '../components/itemRow.js';
 import { promptText, confirmAction, chooseOption, pickCategory } from '../modal.js';
 import * as actions from '../actions.js';
 import { navigate, paths, back } from '../router.js';
+import { isLive } from '../../core/model.js';
 import { iconBack, iconChevronRight, iconTrash, iconPencil, iconPlus } from '../icons.js';
 
 export function RecipeLibraryScreen() {
   const { data } = getState();
-  const recipes = [...data.recipes].sort((a, b) => a.name.localeCompare(b.name));
+  const recipes = data.recipes.filter(isLive).sort((a, b) => a.name.localeCompare(b.name));
 
   return h(
     'div',
@@ -140,7 +141,7 @@ export function RecipeLibraryScreen() {
 
 export function RecipeDetailScreen({ recipeId }) {
   const { data, db } = getState();
-  const recipe = data.recipes.find((candidate) => candidate.id === recipeId);
+  const recipe = data.recipes.find((candidate) => candidate.id === recipeId && isLive(candidate));
 
   if (!recipe) {
     return h(

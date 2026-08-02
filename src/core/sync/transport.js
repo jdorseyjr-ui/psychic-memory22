@@ -87,6 +87,25 @@ export async function pullList(shareCode) {
   return data ?? null;
 }
 
+/**
+ * Fetch the paired household's recipe library and custom grocery entries.
+ * Resolves to null when the household code is unknown.
+ */
+export async function pullHousehold(householdCode) {
+  const data = await rpc('pull_household', { p_household_code: householdCode });
+  return data ?? null;
+}
+
+/** Push library records and receive the merged server state back. */
+export async function pushHousehold({ householdCode, recipes, entries }) {
+  const data = await rpc('push_household', {
+    p_household_code: householdCode,
+    p_recipes: recipes,
+    p_entries: entries,
+  });
+  return data ?? null;
+}
+
 /** Push local records and receive the merged server state back. */
 export async function pushList({ shareCode, name, updatedAt, items, recipes }) {
   const data = await rpc('push_list', {

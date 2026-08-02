@@ -16,6 +16,52 @@ import { iconPlus } from '../icons.js';
 
 const MAX_RESULTS = 8;
 
+/** Below this much free space, the dropdown opens upward instead. */
+const MIN_SPACE_PX = 180;
+/** Never shrink the dropdown below this — it stays scrollable instead. */
+const MIN_HEIGHT_PX = 120;
+/** Breathing room from the viewport edge. */
+const EDGE_GAP_PX = 12;
+
+/**
+ * Size and place the results list against the *visual* viewport.
+ *
+ * On mobile the layout viewport doesn't change when the keyboard opens, so
+ * `dvh` and `innerHeight` both over-report the space available and the
+ * dropdown ends up behind the keyboard. `visualViewport` is the only thing
+ * that reflects reality here.
+ */
+function positionResults(container, results) {
+  const field = container.querySelector('.search-field');
+  if (!field) return;
+
+  const viewport = window.visualViewport;
+  const viewTop = viewport?.offsetTop ?? 0;
+  const viewHeight = viewport?.height ?? window.innerHeight;
+  const rect = field.getBoundingClientRect();
+
+  const spaceBelow = viewTop + viewHeight - rect.bottom - EDGE_GAP_PX;
+  const spaceAbove = rect.top - viewTop - EDGE_GAP_PX;
+  const openUpward = spaceBelow < MIN_SPACE_PX && spaceAbove > spaceBelow;
+
+  container.classList.toggle('search-above', openUpward);
+  const available = openUpward ? spaceAbove : spaceBelow;
+  results.style.maxHeight = `${Math.max(MIN_HEIGHT_PX, Math.floor(available))}px`;
+}
+
+/** Re-measure every open dropdown — the keyboard opening is a resize. */
+function repositionAll() {
+  for (const container of document.querySelectorAll('.search')) {
+    const results = container.querySelector('.search-results');
+    if (results) positionResults(container, results);
+  }
+}
+
+if (typeof window !== 'undefined' && window.visualViewport) {
+  window.visualViewport.addEventListener('resize', repositionAll);
+  window.visualViewport.addEventListener('scroll', repositionAll);
+}
+
 export function getSearchState(context) {
   const { search } = getState();
   if (!search || search.context !== context) return { context, query: '', highlight: 0 };
@@ -91,15 +137,7 @@ export function AddItemSearch({ context, placeholder = 'Add an item…', onSelec
     onKeydown,
   });
 
-  return h(
-    'div',
-    { className: 'search' },
-    h(
-      'div',
-      { className: 'search-field' },
-      h('span', { className: 'search-icon', 'aria-hidden': 'true' }, iconPlus()),
-      input,
-    ),
+  const results =
     optionCount > 0
       ? h(
           'ul',
@@ -163,6 +201,27 @@ export function AddItemSearch({ context, placeholder = 'Add an item…', onSelec
               )
             : null,
         )
-      : null,
+      : null;
+
+  const container = h(
+    'div',
+    { className: 'search' },
+    h(
+      'div',
+      { className: 'search-field' },
+      h('span', { className: 'search-icon', 'aria-hidden': 'true' }, iconPlus()),
+      input,
+    ),
+    results,
   );
+
+  // Measured after mount: the node is not in the document yet, and the caller
+  // mounts synchronously right after this returns.
+  if (results) {
+    requestAnimationFrame(() => {
+      if (results.isConnected) positionResults(container, results);
+    });
+  }
+
+  return container;
 }

@@ -254,3 +254,137 @@ revoke all on function public.resolve_list(text) from anon, authenticated;
 grant execute on function public.create_shared_list(uuid, text, text) to anon, authenticated;
 grant execute on function public.pull_list(text)                      to anon, authenticated;
 grant execute on function public.push_list(text, text, timestamptz, jsonb, jsonb) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Household: the shared recipe library and custom grocery entries.
+--
+-- Lists are shared one at a time; a household pairs two devices' *libraries*.
+-- The household code travels inside the share link, so pairing needs no extra
+-- step — joining someone's list joins their household.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.household_recipes (
+  id              uuid primary key,
+  household_code  text not null,
+  name            text not null,
+  ingredients     jsonb not null default '[]'::jsonb,
+  deleted         boolean not null default false,
+  updated_at      timestamptz not null default now()
+);
+
+create table if not exists public.household_entries (
+  id              text primary key,
+  household_code  text not null,
+  name            text not null,
+  match_terms     jsonb not null default '[]'::jsonb,
+  category        text not null default 'other',
+  emoji           text,
+  default_unit    text not null default 'count',
+  deleted         boolean not null default false,
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists household_recipes_code_idx on public.household_recipes (household_code);
+create index if not exists household_entries_code_idx on public.household_entries (household_code);
+
+alter table public.household_recipes enable row level security;
+alter table public.household_entries enable row level security;
+
+create or replace function public.pull_household(p_household_code text)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'recipes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', r.id,
+        'name', r.name,
+        'ingredients', r.ingredients,
+        'deleted', r.deleted,
+        'updatedAt', to_char(r.updated_at at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+      ))
+      from public.household_recipes r where r.household_code = p_household_code
+    ), '[]'::jsonb),
+    'entries', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', e.id,
+        'name', e.name,
+        'matchTerms', e.match_terms,
+        'category', e.category,
+        'emoji', e.emoji,
+        'defaultUnit', e.default_unit,
+        'isCustom', true,
+        'deleted', e.deleted,
+        'updatedAt', to_char(e.updated_at at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+      ))
+      from public.household_entries e where e.household_code = p_household_code
+    ), '[]'::jsonb)
+  );
+$$;
+
+create or replace function public.push_household(
+  p_household_code text,
+  p_recipes        jsonb,
+  p_entries        jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if length(p_household_code) < 20 then
+    raise exception 'household code too short';
+  end if;
+
+  insert into public.household_recipes (id, household_code, name, ingredients, deleted, updated_at)
+  select
+    (r ->> 'id')::uuid,
+    p_household_code,
+    r ->> 'name',
+    coalesce(r -> 'ingredients', '[]'::jsonb),
+    coalesce((r ->> 'deleted')::boolean, false),
+    (r ->> 'updatedAt')::timestamptz
+  from jsonb_array_elements(coalesce(p_recipes, '[]'::jsonb)) as r
+  on conflict (id) do update
+    set name        = excluded.name,
+        ingredients = excluded.ingredients,
+        deleted     = excluded.deleted,
+        updated_at  = excluded.updated_at
+    where excluded.updated_at > public.household_recipes.updated_at;
+
+  insert into public.household_entries (
+    id, household_code, name, match_terms, category, emoji, default_unit, deleted, updated_at
+  )
+  select
+    e ->> 'id',
+    p_household_code,
+    e ->> 'name',
+    coalesce(e -> 'matchTerms', '[]'::jsonb),
+    coalesce(e ->> 'category', 'other'),
+    nullif(e ->> 'emoji', ''),
+    coalesce(e ->> 'defaultUnit', 'count'),
+    coalesce((e ->> 'deleted')::boolean, false),
+    (e ->> 'updatedAt')::timestamptz
+  from jsonb_array_elements(coalesce(p_entries, '[]'::jsonb)) as e
+  on conflict (id) do update
+    set name         = excluded.name,
+        match_terms  = excluded.match_terms,
+        category     = excluded.category,
+        emoji        = excluded.emoji,
+        default_unit = excluded.default_unit,
+        deleted      = excluded.deleted,
+        updated_at   = excluded.updated_at
+    where excluded.updated_at > public.household_entries.updated_at;
+
+  return public.pull_household(p_household_code);
+end;
+$$;
+
+revoke all on public.household_recipes from anon, authenticated;
+revoke all on public.household_entries from anon, authenticated;
+
+grant execute on function public.pull_household(text)                to anon, authenticated;
+grant execute on function public.push_household(text, jsonb, jsonb)  to anon, authenticated;

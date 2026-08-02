@@ -16,7 +16,11 @@ import { DEFAULT_UNIT, isUnit } from './units.js';
 export function buildDatabase(customEntries = []) {
   const byId = new Map();
   for (const entry of SEED_ENTRIES) byId.set(entry.id, entry);
-  for (const entry of customEntries) byId.set(entry.id, entry);
+  // Tombstoned entries are kept in storage for sync but must not be searchable.
+  for (const entry of customEntries) {
+    if (entry.deleted) byId.delete(entry.id);
+    else byId.set(entry.id, entry);
+  }
 
   const entries = [...byId.values()];
   const byTerm = new Map();
@@ -107,6 +111,7 @@ export function createCustomEntry(name, category = OTHER_CATEGORY, emoji = null)
     emoji: emoji || null,
     defaultUnit: resolved.defaultUnit,
     isCustom: true,
+    deleted: false,
   };
 }
 
