@@ -29,6 +29,21 @@ await page.waitForSelector('.empty-state');
 
 await step('create a list', async () => {
   await page.getByRole('button', { name: 'Create your first list' }).click();
+
+  // The name field is pre-filled with today's date, and typing replaces it.
+  const suggested = await page.locator('.sheet input.field').inputValue();
+  const today = new Date();
+  const expected = `List - ${String(today.getMonth() + 1).padStart(2, '0')}/${String(
+    today.getDate(),
+  ).padStart(2, '0')}/${today.getFullYear()}`;
+  if (suggested !== expected) throw new Error(`suggested name was "${suggested}", expected "${expected}"`);
+
+  const selected = await page.evaluate(() => {
+    const el = document.querySelector('.sheet input.field');
+    return el.selectionEnd - el.selectionStart === el.value.length && el.value.length > 0;
+  });
+  if (!selected) throw new Error('suggested name is not selected for easy replacement');
+
   await page.locator('.sheet input.field').fill('Weekly groceries');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await page.waitForSelector('.search-input');

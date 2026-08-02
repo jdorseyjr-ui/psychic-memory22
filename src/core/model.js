@@ -14,6 +14,18 @@ import { DEFAULT_UNIT } from './units.js';
 
 // --- Factories -------------------------------------------------------------
 
+/**
+ * Suggested name for a new list, e.g. "List - 08/02/2026".
+ *
+ * Built from the *local* calendar date, not UTC: a list started at 11pm should
+ * carry today's date, not tomorrow's.
+ */
+export function defaultListName(date = new Date()) {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `List - ${month}/${day}/${date.getFullYear()}`;
+}
+
 export function createList(name) {
   const timestamp = now();
   return {

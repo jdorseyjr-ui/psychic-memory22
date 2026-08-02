@@ -6,7 +6,7 @@ import { ListCard } from '../components/listCard.js';
 import { promptText, confirmAction } from '../modal.js';
 import * as actions from '../actions.js';
 import { navigate, paths } from '../router.js';
-import { itemCount } from '../../core/model.js';
+import { itemCount, defaultListName } from '../../core/model.js';
 import { iconPlus, iconBook } from '../icons.js';
 
 export function ListsScreen() {
@@ -19,6 +19,7 @@ export function ListsScreen() {
     const name = await promptText({
       title: 'New list',
       label: 'List name',
+      value: defaultListName(),
       placeholder: 'Weekly groceries',
       confirmLabel: 'Create',
     });

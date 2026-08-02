@@ -42,7 +42,16 @@ function openSheet(build) {
     mount(modalRoot(), backdrop);
 
     const focusTarget = panel.querySelector('[data-autofocus]');
-    if (focusTarget) requestAnimationFrame(() => focusTarget.focus());
+    if (focusTarget) {
+      requestAnimationFrame(() => {
+        focusTarget.focus();
+        // A pre-filled suggestion should be replaceable by just typing, rather
+        // than leaving the caret parked at the end of it.
+        if (typeof focusTarget.select === 'function' && focusTarget.value) {
+          focusTarget.select();
+        }
+      });
+    }
   });
 }
 

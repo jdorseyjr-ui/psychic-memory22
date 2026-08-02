@@ -28,6 +28,7 @@ import {
   itemCount,
   findItem,
   toIngredient,
+  defaultListName,
 } from '../src/core/model.js';
 import { formatQuantity } from '../src/core/units.js';
 import { CATEGORIES } from '../src/core/categories.js';
@@ -146,6 +147,32 @@ test('custom entries default to the Other aisle', () => {
 });
 
 // --- model -----------------------------------------------------------------
+
+test('a new list is suggested a dated name', () => {
+  assert.equal(defaultListName(new Date(2026, 7, 2)), 'List - 08/02/2026');
+});
+
+test('the suggested date is zero-padded', () => {
+  assert.equal(defaultListName(new Date(2026, 0, 9)), 'List - 01/09/2026');
+  assert.equal(defaultListName(new Date(2026, 11, 25)), 'List - 12/25/2026');
+});
+
+test('the suggested date is the local day, not the UTC day', () => {
+  // A list started late in the evening must carry today's date. Comparing
+  // against toLocaleDateString keeps this correct in any timezone.
+  const lateEvening = new Date('2026-08-02T23:30:00Z');
+  const localDate = lateEvening.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  });
+  assert.equal(defaultListName(lateEvening), `List - ${localDate}`);
+});
+
+test('the suggested name is accepted as-is by createList', () => {
+  const list = createList(defaultListName(new Date(2026, 7, 2)));
+  assert.equal(list.name, 'List - 08/02/2026');
+});
 
 test('records carry a stable id and timestamps from v1', () => {
   const list = createList('Weekly');
