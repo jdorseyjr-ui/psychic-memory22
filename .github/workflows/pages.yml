@@ -52,7 +52,12 @@ jobs:
             echo "Sharing is configured."
           fi
 
+      # `enablement: true` turns Pages on if it isn't already, so a first run
+      # doesn't fail purely because the repository setting hasn't been flipped
+      # yet (or was flipped seconds too late).
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
