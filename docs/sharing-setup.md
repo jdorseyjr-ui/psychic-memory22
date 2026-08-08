@@ -37,7 +37,9 @@ export const SUPABASE_URL = 'https://abcdefgh.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOi...';
 ```
 
-Commit and push. That's it — every list now has a **Share** button.
+Commit and push to `main`. That's it — every list now has a **Share** button.
+(Pushing to a side branch runs the tests but deploys nothing; see the branching
+notes in the README.)
 
 Note the repository is public, so the anon key is publicly readable. That is
 fine by design — see the security section — but it is worth knowing rather

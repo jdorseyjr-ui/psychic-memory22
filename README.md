@@ -34,6 +34,28 @@ The sharing tests run two independent browser contexts — separate storage, so
 genuinely two "phones" — against a mock backend that implements the same
 last-write-wins rules as `db/schema.sql`. No Supabase account needed.
 
+### How changes reach the app
+
+`main` is the live branch: merging into it deploys to GitHub Pages, which is
+what both phones load. Work happens on a side branch, which deploys nowhere.
+
+```
+side branch  →  push        →  tests run, nothing deploys
+             →  pull request →  tests run against the merge result
+             →  merge to main →  deploys to both phones
+```
+
+The deploy job is gated on the repository's *default* branch, read at run time
+rather than hardcoded, so renaming the branch doesn't silently stop deploys.
+
+Two things worth remembering when merging:
+
+- **A merge is a release.** There's no staging URL; the next thing your phone
+  loads is whatever just landed on `main`.
+- **Stored data must keep loading.** People have real lists in browser storage.
+  Anything that changes the data shape needs to still read the old shape — see
+  the `tools/` walkthroughs for how that's checked.
+
 ### Single-file build
 
 For hosts that can't serve a directory of ES modules (a strict CSP, an email

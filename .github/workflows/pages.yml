@@ -2,11 +2,18 @@ name: Deploy to GitHub Pages
 
 # The app has no build step, so this just uploads the repo as a static site.
 #
-# Tests run for pushes to any branch; only the repository's default branch is
-# deployed. The default branch is read at run time rather than hardcoded, so
-# this keeps working if the branch is renamed or merged into `main` later.
+# Tests run for every push and pull request; only the repository's *default*
+# branch is deployed. That is the whole staging story: work happens on a side
+# branch and deploys nowhere, and a merge into the default branch is what
+# reaches the phones. The default branch is read at run time rather than
+# hardcoded, so renaming it does not break this.
 on:
   push:
+  # Also run on pull requests: this tests the *merge result* rather than the
+  # branch tip, which is what catches "green on the branch, broken once
+  # merged". It means two test runs while a PR is open — cheap, since the suite
+  # takes seconds and needs no dependencies.
+  pull_request:
   workflow_dispatch:
 
 permissions:
