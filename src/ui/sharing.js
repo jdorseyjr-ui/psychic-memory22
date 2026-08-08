@@ -66,11 +66,7 @@ export async function shareList(list, { engine }) {
   try {
     await transport.createSharedList({ listId: list.id, shareCode, name: list.name });
   } catch (error) {
-    showToast(
-      error.retryable
-        ? 'No connection — try sharing again once you’re online.'
-        : 'Couldn’t create the share link.',
-    );
+    await showSyncError('Couldn’t create the share link', error);
     return null;
   }
 
@@ -103,9 +99,7 @@ export async function joinList(token, { engine }) {
   try {
     remote = await transport.pullList(shareCode);
   } catch (error) {
-    showToast(
-      error.retryable ? 'No connection — open the link again when you’re online.' : 'Couldn’t open that link.',
-    );
+    await showSyncError('Couldn’t open that link', error);
     return null;
   }
 
@@ -127,6 +121,25 @@ export async function joinList(token, { engine }) {
   showToast(`Joined “${remote.name}”`);
   navigate(paths.list(list.id));
   return list;
+}
+
+/**
+ * Show a sync failure in a sheet rather than a toast.
+ *
+ * Setup happens on a phone, where there is no console to read, and a toast
+ * disappears before it can be screenshotted. The server's status code and
+ * message are the whole diagnosis, so they go on screen verbatim.
+ */
+async function showSyncError(title, error) {
+  // Whether to retry and what to tell the user are different questions. A 500
+  // is worth retrying but is NOT a connection problem — saying "no connection"
+  // there sends someone hunting for signal when the server actually answered.
+  // Having a status code at all means we reached it, so the code is the news.
+  const detail = error?.status
+    ? `HTTP ${error.status}\n\n${error.message ?? ''}`.trim()
+    : 'No connection. Your list is saved on this device — try again when you’re online.';
+
+  await confirmAction({ title, message: detail, confirmLabel: 'Done' });
 }
 
 /** Copy helper that degrades to a selectable input when the API is blocked. */
@@ -153,7 +166,7 @@ export function SyncBadge({ list, sync }) {
       : status === 'syncing'
         ? 'Syncing…'
         : status === 'error'
-          ? 'Sync problem'
+          ? `Sync problem${sync?.detail?.status ? ` (HTTP ${sync.detail.status})` : ''}`
           : 'Shared · up to date';
 
   return h(

@@ -23,8 +23,26 @@
  */
 const overrides = globalThis.__SHOPPING_LIST_CONFIG__ ?? {};
 
-export const SUPABASE_URL = overrides.supabaseUrl ?? '';
-export const SUPABASE_ANON_KEY = overrides.supabaseAnonKey ?? '';
+/**
+ * Supabase shows this as ".../rest/v1/" in the dashboard, but the transport
+ * appends that itself, so a pasted path suffix or trailing slash is trimmed
+ * here rather than producing a confusing 404 later.
+ */
+function normalizeUrl(url) {
+  return String(url || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/rest\/v1$/, '');
+}
+
+export const SUPABASE_URL = normalizeUrl(
+  overrides.supabaseUrl ?? 'https://ifbjgttxlqsskgoclxaf.supabase.co',
+);
+
+export const SUPABASE_ANON_KEY = (
+  overrides.supabaseAnonKey ??
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYmpndHR4bHFzc2tnb2NseGFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2OTE0NjgsImV4cCI6MjEwMTI2NzQ2OH0.E1Ytsbi0MtkNWwuhVeEruGbYw4XapzgXO-DCV0-vb-I'
+).trim();
 
 /** How often to check the server for the other person's changes, in ms. */
 export const POLL_INTERVAL_MS = {
