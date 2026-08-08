@@ -1,11 +1,12 @@
 name: Deploy to GitHub Pages
 
 # The app has no build step, so this just uploads the repo as a static site.
-# Auto-deploys on push to the default branch; use "Run workflow" in the Actions
-# tab to deploy any other branch.
+#
+# Tests run for pushes to any branch; only the repository's default branch is
+# deployed. The default branch is read at run time rather than hardcoded, so
+# this keeps working if the branch is renamed or merged into `main` later.
 on:
   push:
-    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -31,6 +32,10 @@ jobs:
 
   deploy:
     needs: test
+    # Deploy only the default branch, or a manual run of any branch.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -38,12 +43,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fail if Supabase credentials are missing
+      - name: Warn if sharing is not configured
         run: |
-          if ! grep -qE "^export const SUPABASE_URL = '.+';" src/config.js; then
-            echo "src/config.js has no Supabase URL — sharing will be disabled on the"
-            echo "deployed site. Fill it in (see README) or remove this check."
-            exit 1
+          if grep -qE "supabaseUrl \?\? ''" src/config.js && \
+             ! grep -qE "^export const SUPABASE_URL = 'https" src/config.js; then
+            echo "::warning title=Sharing disabled::src/config.js has no Supabase URL, so the deployed site will be local-only (no Share button). See docs/sharing-setup.md."
+          else
+            echo "Sharing is configured."
           fi
 
       - uses: actions/configure-pages@v5

@@ -17,6 +17,10 @@
 -- Tables
 -- ---------------------------------------------------------------------------
 
+-- Already true on a stock Supabase project; stated so the script also works on
+-- a bare Postgres database.
+grant usage on schema public to anon, authenticated;
+
 create table if not exists public.lists (
   id          uuid primary key,
   share_code  text unique not null,
@@ -249,7 +253,14 @@ revoke all on public.lists        from anon, authenticated;
 revoke all on public.list_items   from anon, authenticated;
 revoke all on public.list_recipes from anon, authenticated;
 
-revoke all on function public.resolve_list(text) from anon, authenticated;
+-- Postgres grants EXECUTE on new functions to PUBLIC by default, and PUBLIC
+-- includes anon. Revoking from `anon` alone leaves that default in place, so
+-- every function is revoked from PUBLIC first and then granted back
+-- deliberately. `resolve_list` is internal and is never granted.
+revoke all on function public.resolve_list(text) from public, anon, authenticated;
+revoke all on function public.create_shared_list(uuid, text, text) from public;
+revoke all on function public.pull_list(text) from public;
+revoke all on function public.push_list(text, text, timestamptz, jsonb, jsonb) from public;
 
 grant execute on function public.create_shared_list(uuid, text, text) to anon, authenticated;
 grant execute on function public.pull_list(text)                      to anon, authenticated;
@@ -385,6 +396,9 @@ $$;
 
 revoke all on public.household_recipes from anon, authenticated;
 revoke all on public.household_entries from anon, authenticated;
+
+revoke all on function public.pull_household(text) from public;
+revoke all on function public.push_household(text, jsonb, jsonb) from public;
 
 grant execute on function public.pull_household(text)                to anon, authenticated;
 grant execute on function public.push_household(text, jsonb, jsonb)  to anon, authenticated;

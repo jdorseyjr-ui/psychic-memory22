@@ -39,6 +39,10 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOi...';
 
 Commit and push. That's it — every list now has a **Share** button.
 
+Note the repository is public, so the anon key is publicly readable. That is
+fine by design — see the security section — but it is worth knowing rather
+than discovering.
+
 ---
 
 ## Using it
@@ -99,7 +103,20 @@ is designed — but it means the key must not be what grants access, so it isn't
   table access is denied to everyone, including the anon key.
 - All access goes through `SECURITY DEFINER` functions, each of which requires
   either the list's **share code** or the **household code**.
+- Postgres grants `EXECUTE` on new functions to `PUBLIC` by default, so each
+  function is explicitly revoked from `PUBLIC` and then granted back. The
+  internal `resolve_list` helper is never granted.
 - Both codes are 128 bits of randomness. Guessing one is not feasible.
+
+These claims are executable, not aspirational — `db/verify.sql` asserts them
+against a real Postgres. Run it on a scratch database:
+
+```bash
+createdb sl_test
+psql -d sl_test -c "create role anon nologin; create role authenticated nologin;"
+psql -d sl_test -f db/schema.sql
+psql -d sl_test -f db/verify.sql   # every line should print PASS
+```
 
 So the share link is the credential. **Treat it like a house key**: anyone who
 has it can read and edit that one list — and nothing else, not your other
