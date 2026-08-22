@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   newSchedule, applyReview, reviewWord, ensureSchedule, isDue, sortForStudy,
   dueCount, qualityFor, isMastered, dayStart, addDays, MIN_EASE, DEFAULT_EASE, QUALITY,
+  maturity, meanMaturity, isLearning, REPS_TO_MASTER, MASTERY_INTERVAL_DAYS,
 } from '../src/lib/sm2.js';
 
 const NOW = new Date('2026-03-10T09:30:00Z');
@@ -100,4 +101,55 @@ test('due cards sort ahead of scheduled ones, most overdue first', () => {
 test('mastery is earned by reaching a long interval', () => {
   assert.equal(isMastered({ schedule: { interval: 6 } }), false);
   assert.equal(isMastered({ schedule: { interval: 21 } }), true);
+});
+
+test('REPS_TO_MASTER is the review that actually crosses the interval threshold', () => {
+  let s = newSchedule(NOW);
+  for (let i = 1; i < REPS_TO_MASTER; i++) {
+    s = applyReview(s, QUALITY.good, NOW);
+    assert.ok(s.interval < MASTERY_INTERVAL_DAYS,
+      `review ${i} should not yet master, interval ${s.interval}`);
+  }
+  s = applyReview(s, QUALITY.good, NOW);
+  assert.ok(s.interval >= MASTERY_INTERVAL_DAYS,
+    `review ${REPS_TO_MASTER} should master, interval ${s.interval}`);
+});
+
+test('maturity moves on the first correct answer', () => {
+  const word = { id: '1', es: 'el perro' };
+  assert.equal(maturity(ensureSchedule(word, NOW)), 0);
+
+  const once = reviewWord(word, QUALITY.good, NOW);
+  assert.ok(maturity(once) > 0, 'a correct answer must register immediately');
+  assert.equal(maturity(once), 0.25);
+  assert.ok(isLearning(once), 'and the word should read as in progress');
+});
+
+test('maturity climbs to 1 exactly when the word is mastered', () => {
+  let word = { id: '1', es: 'el perro' };
+  const seen = [];
+  for (let i = 0; i < REPS_TO_MASTER; i++) {
+    word = reviewWord(word, QUALITY.good, NOW);
+    seen.push(maturity(word));
+  }
+  assert.deepEqual(seen, [0.25, 0.5, 0.75, 1]);
+  assert.ok(isMastered(word));
+  assert.ok(!isLearning(word), 'a mastered word is no longer "learning"');
+});
+
+test('a lapse pulls maturity back down', () => {
+  let word = { id: '1', es: 'el perro' };
+  word = reviewWord(word, QUALITY.good, NOW);
+  word = reviewWord(word, QUALITY.good, NOW);
+  assert.equal(maturity(word), 0.5);
+
+  word = reviewWord(word, QUALITY.again, NOW);
+  assert.equal(maturity(word), 0, 'forgetting a word should cost the progress');
+});
+
+test('mean maturity is what a progress bar can fill to', () => {
+  assert.equal(meanMaturity([]), 0);
+  const a = reviewWord({ id: 'a', es: 'a' }, QUALITY.good, NOW);
+  const b = ensureSchedule({ id: 'b', es: 'b' }, NOW);
+  assert.equal(meanMaturity([a, b]), 0.125);
 });

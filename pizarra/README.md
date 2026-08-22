@@ -29,13 +29,13 @@ npm run build:static # -> dist-static/index.html
 ## Tests
 
 ```bash
-npm test             # 18 unit tests: the scheduler and the storage layer
+npm test             # 23 unit tests: the scheduler and the storage layer
 npm run test:e2e     # 20-step browser walkthrough, needs a server running
 npm run lint
 ```
 
 `test:e2e` drives a real browser and resets the store before it starts, so it's
-repeatable. The same 20 steps cover both storage drivers — it passes against
+repeatable. The same 21 steps cover both storage drivers — it passes against
 `npm run dev`, `npm start`, and the static build:
 
 ```bash
@@ -102,8 +102,16 @@ and self-rate; in *recordar* you type the Spanish and it's marked right or
 wrong. A word has one schedule no matter which way you drilled it.
 
 "Mastered" is no longer a flag you toggle — a word counts as mastered once it
-has earned an interval of 21 days or more, which is what the progress bars and
-the filled dots in the list reflect.
+has earned an interval of 21 days or more.
+
+That threshold alone makes a poor progress meter: the interval ladder reaches
+21 days on the fourth correct review, and the scheduler won't offer that
+review until day 22. A bar drawn from mastery alone therefore cannot move on
+the day you do the work. So the vocab bar is drawn in two layers — solid to
+the share of words mastered, translucent to the level's mean *maturity*, which
+counts successful repetitions and advances the moment you answer correctly.
+The list dots match: solid for mastered, faint for a word in progress. A lapse
+pulls both back, which is the honest reading.
 
 ### Fonts
 

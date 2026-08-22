@@ -149,7 +149,40 @@ export function qualityFor(outcome) {
 /** A word counts as "mastered" once it has earned a comfortably long interval. */
 export const MASTERY_INTERVAL_DAYS = 21;
 
+/**
+ * Successful reviews needed to cross that interval: the ladder runs
+ * 1 -> 6 -> 15 -> 38 days, so the fourth correct answer is the one that does
+ * it. Kept in step with MASTERY_INTERVAL_DAYS by a test.
+ */
+export const REPS_TO_MASTER = 4;
+
 export function isMastered(word) {
   const s = word?.schedule;
   return !!s && s.interval >= MASTERY_INTERVAL_DAYS;
+}
+
+/** A word that has been answered correctly at least once but isn't mastered. */
+export function isLearning(word) {
+  const s = word?.schedule;
+  return !!s && s.repetitions > 0 && !isMastered(word);
+}
+
+/**
+ * How far a word has come, from 0 (new or just lapsed) to 1 (mastered).
+ *
+ * Measured in successful repetitions rather than interval length, so a correct
+ * answer moves it immediately. Going by interval alone means the first three
+ * correct answers register as 5%, 29%, and 71% of the way there, which reads
+ * as nothing happening on the day you actually did the work.
+ */
+export function maturity(word) {
+  if (isMastered(word)) return 1;
+  const reps = word?.schedule?.repetitions || 0;
+  return Math.min(reps / REPS_TO_MASTER, 1);
+}
+
+/** Mean maturity across a set of words — what the progress bar fills to. */
+export function meanMaturity(words) {
+  if (!words.length) return 0;
+  return words.reduce((sum, w) => sum + maturity(w), 0) / words.length;
 }

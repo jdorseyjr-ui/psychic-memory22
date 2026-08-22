@@ -273,6 +273,38 @@ await check('grammar example audio plays', async () => {
   assert(spoken.length === 1 && spoken[0].lang === 'es-ES', `got ${JSON.stringify(spoken)}`);
 });
 
+await check('a correct answer moves the vocab meter the same day', async () => {
+  await page.locator('.tab', { hasText: 'Vocabulario' }).click();
+  await page.locator('.rung', { hasText: 'C1' }).click();
+  await page.waitForSelector('.index-card');
+  // Earlier steps left the deck in recall mode; this one grades by button.
+  await page.locator('.mode-btn', { hasText: 'reconocer' }).click();
+  await page.waitForSelector('.btn-yes');
+
+  const readBar = async () => {
+    await page.locator('.tab', { hasText: 'Progreso' }).click();
+    await page.waitForSelector('.progress-row');
+    const row = page.locator('.progress-row').nth(4); // C1
+    return row.locator('.bar-fill-soft').evaluate((el) => parseFloat(el.style.width) || 0);
+  };
+
+  const before = await readBar();
+  await page.locator('.tab', { hasText: 'Vocabulario' }).click();
+  await page.waitForSelector('.btn-yes');
+  await page.locator('.btn-yes').click();
+  await page.waitForTimeout(250);
+  const after = await readBar();
+
+  assert(after > before,
+    `the meter must respond to a correct answer, not wait for the interval to mature (${before}% -> ${after}%)`);
+
+  const nums = await page.locator('.progress-row').nth(4).locator('.progress-nums').innerText();
+  assert(/1 en curso/.test(nums), `expected an in-progress count, got "${nums}"`);
+  await page.locator('.tab', { hasText: 'Vocabulario' }).click();
+  await page.locator('.rung', { hasText: 'A1' }).click();
+  await page.waitForTimeout(150);
+});
+
 await check('progress view reflects vocab and grammar per level', async () => {
   await page.locator('.tab', { hasText: 'Progreso' }).click();
   await page.waitForSelector('.progress-row');
@@ -283,7 +315,7 @@ await check('progress view reflects vocab and grammar per level', async () => {
   assert(/vocab \d+\/4/.test(a1), `A1 should hold 4 words after import/delete, got "${a1}"`);
   assert(/1\/1/.test(a1), `A1 grammar should be 1/1, got "${a1}"`);
 
-  const width = await page.locator('.progress-row').first().locator('.bar-fill').nth(1).evaluate((el) => el.style.width);
+  const width = await page.locator('.progress-row').first().locator('.bar-track-thin .bar-fill').evaluate((el) => el.style.width);
   assert(width === '100%', `grammar bar should be full, got ${width}`);
 });
 

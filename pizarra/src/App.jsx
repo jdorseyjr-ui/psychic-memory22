@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { BookOpen, GraduationCap, Check, X, Plus, ClipboardList, TrendingUp, Volume2, Pencil, Trash2, Search, Repeat, Type } from "lucide-react";
 import { getAll, saveVocab, saveGrammarScores } from "./storage/index.js";
-import { ensureSchedule, reviewWord, sortForStudy, dueCount, isMastered, isDue, qualityFor } from "./lib/sm2.js";
+import { ensureSchedule, reviewWord, sortForStudy, dueCount, isMastered, isLearning, isDue, qualityFor, meanMaturity } from "./lib/sm2.js";
 
 const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
@@ -277,8 +277,10 @@ export default function App() {
     }
   }
 
-  const totalByLevel = (lv) => vocab.filter((v) => v.level === lv).length;
-  const masteredByLevel = (lv) => vocab.filter((v) => v.level === lv && isMastered(v)).length;
+  const atLevel = (lv) => vocab.filter((v) => v.level === lv);
+  const totalByLevel = (lv) => atLevel(lv).length;
+  const masteredByLevel = (lv) => atLevel(lv).filter(isMastered).length;
+  const learningByLevel = (lv) => atLevel(lv).filter(isLearning).length;
   const grammarTotalByLevel = (lv) => grammar.filter((g) => g.level === lv).length;
   const grammarDoneByLevel = (lv) => grammar.filter((g) => g.level === lv && gramScore[g.id]).length;
 
@@ -467,9 +469,9 @@ export default function App() {
                   ) : (
                     <>
                       <span
-                        className={"dot" + (isMastered(v) ? " dot-on" : "") + (isDue(v) ? " dot-due" : "")}
+                        className={"dot" + (isMastered(v) ? " dot-on" : "") + (isLearning(v) ? " dot-learning" : "") + (isDue(v) ? " dot-due" : "")}
                         style={{ "--dot-color": lc }}
-                        title={isMastered(v) ? "dominada" : isDue(v) ? "toca repasar" : "programada"}
+                        title={isMastered(v) ? "dominada" : isLearning(v) ? "en curso" : isDue(v) ? "toca repasar" : "programada"}
                       />
                       <span className="vocab-es">{v.es}</span>
                       <span className="vocab-en">{v.en}</span>
@@ -535,7 +537,12 @@ export default function App() {
             {LEVELS.map((lv) => {
               const total = totalByLevel(lv);
               const mastered = masteredByLevel(lv);
+              const learning = learningByLevel(lv);
+              // Solid to what's mastered, translucent to how far the level has
+              // come overall — so a correct answer today shows up today,
+              // rather than three weeks from now when the interval crosses.
               const vPct = total ? Math.round((mastered / total) * 100) : 0;
+              const mPct = Math.round(meanMaturity(atLevel(lv)) * 100);
               const gTotal = grammarTotalByLevel(lv);
               const gDone = grammarDoneByLevel(lv);
               const gPct = gTotal ? Math.round((gDone / gTotal) * 100) : 0;
@@ -543,10 +550,15 @@ export default function App() {
                 <div key={lv} className="progress-row">
                   <div className="progress-label">
                     <span className="progress-badge" style={{ background: LEVEL_COLOR[lv] }}>{lv}</span>
-                    <span className="progress-nums">vocab {mastered}/{total} · gramática {gDone}/{gTotal}</span>
+                    <span className="progress-nums">
+                      vocab {mastered}/{total}
+                      {learning > 0 && ` · ${learning} en curso`}
+                      {" · "}gramática {gDone}/{gTotal}
+                    </span>
                   </div>
                   <div className="bar-track">
-                    <div className="bar-fill" style={{ width: vPct + "%", background: LEVEL_COLOR[lv] }} />
+                    <div className="bar-fill bar-fill-soft" style={{ width: mPct + "%", background: LEVEL_COLOR[lv] }} />
+                    <div className="bar-fill bar-fill-mastered" style={{ width: vPct + "%", background: LEVEL_COLOR[lv] }} />
                   </div>
                   <div className="bar-track bar-track-thin">
                     <div className="bar-fill" style={{ width: gPct + "%", background: LEVEL_COLOR[lv], opacity: 0.6 }} />
@@ -640,6 +652,7 @@ const CSS = `
 .vocab-row { display: grid; grid-template-columns: 14px 1.1fr 1.1fr 0.7fr auto; align-items: center; gap: 8px; padding: 9px 6px; border-bottom: 1px solid rgba(244,241,232,0.08); font-size: 13.5px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid rgba(244,241,232,0.4); }
 .dot-on { background: var(--dot-color); border-color: var(--dot-color); }
+.dot-learning { background: var(--dot-color); border-color: var(--dot-color); opacity: 0.45; }
 .vocab-es { font-weight: 500; }
 .vocab-en { opacity: 0.75; }
 .vocab-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: 0.5; text-align: right; }
@@ -666,7 +679,9 @@ const CSS = `
 .progress-label { display: flex; align-items: center; gap: 10px; }
 .progress-badge { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; color: #1F3A34; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .progress-nums { font-size: 12.5px; opacity: 0.75; }
-.bar-track { width: 100%; height: 8px; background: rgba(244,241,232,0.1); border-radius: 4px; overflow: hidden; }
+.bar-track { position: relative; width: 100%; height: 8px; background: rgba(244,241,232,0.1); border-radius: 4px; overflow: hidden; }
+.bar-fill-soft { position: absolute; left: 0; top: 0; opacity: 0.4; }
+.bar-fill-mastered { position: absolute; left: 0; top: 0; }
 .bar-track-thin { height: 4px; }
 .bar-fill { height: 100%; border-radius: 4px; transition: width .3s ease; }
 .progress-note { font-size: 12px; opacity: 0.5; margin-top: 6px; }
