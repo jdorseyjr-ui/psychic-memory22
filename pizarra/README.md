@@ -20,6 +20,12 @@ npm run build
 npm start            # serves dist/ plus the same /api on :5173
 ```
 
+For a phone or any static host — one self-contained `index.html`, no server:
+
+```bash
+npm run build:static # -> dist-static/index.html
+```
+
 ## Tests
 
 ```bash
@@ -28,9 +34,15 @@ npm run test:e2e     # 20-step browser walkthrough, needs a server running
 npm run lint
 ```
 
-`test:e2e` drives a real browser against a real data file and resets the store
-before it starts, so it's repeatable. It passes against both `npm run dev` and
-`npm start`.
+`test:e2e` drives a real browser and resets the store before it starts, so it's
+repeatable. The same 20 steps cover both storage drivers — it passes against
+`npm run dev`, `npm start`, and the static build:
+
+```bash
+npm run build:static
+node tools/serve-static.mjs                                  # :4173
+PIZARRA_STORAGE=local PIZARRA_URL=http://localhost:4173 npm run test:e2e
+```
 
 ## How it's put together
 
@@ -46,8 +58,18 @@ server/jsonStore.js   atomic reads and writes of data/pizarra.json
 
 Components never read or write files. They call `getVocab()`, `saveVocab()`,
 `getGrammarScores()`, `saveGrammarScores()`, and `getAll()`, and that's the
-whole surface. A browser can't touch the filesystem, so those calls go over
-`/api` to a small node layer that owns the file.
+whole surface. Two drivers implement it, and the build picks one:
+
+| build | driver | where data lives |
+| --- | --- | --- |
+| `npm run dev`, `npm start` | `apiDriver` | `data/pizarra.json`, via `/api` |
+| `npm run build:static` | `localDriver` | the browser's `localStorage` |
+
+A browser can't touch the filesystem, so the file-backed driver goes over
+`/api` to a small node layer that owns the file. The static build has no
+server behind it at all, so it keeps everything in `localStorage` — per
+browser, per device, which means a phone and a laptop don't share progress.
+A shared backend later is a third driver, not a change to any view.
 
 Every record carries a `userId`, hardcoded to `"default"`. There's no
 multi-user support and none is implied — the field is there so that pointing

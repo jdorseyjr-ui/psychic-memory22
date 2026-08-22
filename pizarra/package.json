@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "oxlint",
     "test": "node --test tests/*.test.js",
-    "test:e2e": "node tools/e2e.mjs"
+    "test:e2e": "node tools/e2e.mjs",
+    "build:static": "VITE_STORAGE=local vite build"
   },
   "dependencies": {
     "@fontsource/caveat": "^5.3.0",
@@ -27,7 +28,8 @@
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
     "playwright": "^1.62.1",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "vite-plugin-singlefile": "^2.3.3"
   },
   "description": "La Pizarra — a Spanish learning app: flashcards with SM-2 spaced repetition, vocabulary, grammar quizzes, and progress."
 }

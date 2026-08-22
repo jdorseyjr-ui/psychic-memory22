@@ -1,57 +1,24 @@
 // The storage interface.
 //
 // Components call getVocab() / saveVocab() and friends; nothing else in the
-// app knows where the data actually lives. Today that's a JSON file on disk,
-// reached over /api. Pointing this at a shared backend later means editing
-// this file and the server, not the views.
+// app knows where the data actually lives. Two drivers implement that same
+// interface, and which one is compiled in is a build-time choice:
+//
+//   default            a JSON file on disk, via /api  (npm run dev, npm start)
+//   VITE_STORAGE=local the browser's localStorage     (npm run build:static)
+//
+// A shared backend later is a third driver, not a change to any view.
 
-export const USER_ID = 'default';
+import * as apiDriver from './apiDriver.js';
+import * as localDriver from './localDriver.js';
 
-const BASE = '/api';
+const driver = import.meta.env.VITE_STORAGE === 'local' ? localDriver : apiDriver;
 
-async function request(path, { method = 'GET', body } = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: {
-      'X-User-Id': USER_ID,
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      detail = (await res.json()).error || detail;
-    } catch {
-      /* keep statusText */
-    }
-    throw new Error(`${method} ${path} failed: ${detail}`);
-  }
-  return res.json();
-}
+export const USER_ID = driver.USER_ID;
+export const DRIVER = import.meta.env.VITE_STORAGE === 'local' ? 'local' : 'api';
 
-/** Stamps records with the current user before they go to storage. */
-function withUser(records) {
-  return records.map((r) => ({ ...r, userId: r.userId || USER_ID }));
-}
-
-export function getVocab() {
-  return request('/vocab');
-}
-
-export function saveVocab(vocab) {
-  return request('/vocab', { method: 'PUT', body: withUser(vocab) });
-}
-
-export function getGrammarScores() {
-  return request('/grammar-scores');
-}
-
-export function saveGrammarScores(scores) {
-  return request('/grammar-scores', { method: 'PUT', body: withUser(scores) });
-}
-
-/** One round trip on startup instead of two. */
-export function getAll() {
-  return request('/state');
-}
+export const getVocab = (...args) => driver.getVocab(...args);
+export const saveVocab = (...args) => driver.saveVocab(...args);
+export const getGrammarScores = (...args) => driver.getGrammarScores(...args);
+export const saveGrammarScores = (...args) => driver.saveGrammarScores(...args);
+export const getAll = (...args) => driver.getAll(...args);
