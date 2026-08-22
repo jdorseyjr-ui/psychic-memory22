@@ -126,3 +126,16 @@ test('bad input is rejected rather than written', async () => {
     assert.equal(badMethod.status, 405);
   });
 });
+
+test('a file edited outside the app is picked up, not served from cache', async () => {
+  const file = await tmpFile();
+  const store = createStore({ file });
+  await store.update((db) => ({ ...db, vocab: [{ id: '1', es: 'el perro' }] }));
+  assert.equal((await store.read()).vocab[0].es, 'el perro');
+
+  // Hand-edit the file the way someone poking at their own data would.
+  await new Promise((r) => setTimeout(r, 12));
+  await writeFile(file, JSON.stringify({ version: 1, vocab: [{ id: '1', es: 'el gato' }], grammarScores: [] }), 'utf8');
+
+  assert.equal((await store.read()).vocab[0].es, 'el gato', 'expected the edit to be seen');
+});

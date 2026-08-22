@@ -120,7 +120,7 @@ export function sortForStudy(words, now = new Date()) {
       const bDue = db <= today;
       if (aDue !== bDue) return aDue ? -1 : 1;
       if (da !== db) return da - db;
-      return String(a.word || '').localeCompare(String(b.word || ''));
+      return String(a.es || '').localeCompare(String(b.es || ''));
     });
 }
 

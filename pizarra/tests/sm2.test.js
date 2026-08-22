@@ -67,7 +67,7 @@ test('applyReview does not mutate the schedule it is given', () => {
 });
 
 test('both flashcard modes grade through the same scheduler', () => {
-  const word = { id: '1', word: 'el perro', translation: 'the dog' };
+  const word = { id: '1', es: 'el perro', en: 'the dog' };
   // recognition mode self-rates; recall mode reports right/wrong
   const afterRecognize = reviewWord(word, qualityFor('good'), NOW);
   const afterRecall = reviewWord(word, qualityFor(true), NOW);
@@ -79,18 +79,18 @@ test('both flashcard modes grade through the same scheduler', () => {
 });
 
 test('legacy records are migrated, with mastered words keeping credit', () => {
-  const plain = ensureSchedule({ id: '1', word: 'la casa' }, NOW);
+  const plain = ensureSchedule({ id: '1', es: 'la casa' }, NOW);
   assert.equal(plain.schedule.repetitions, 0);
 
-  const mastered = ensureSchedule({ id: '2', word: 'el gato', mastered: true }, NOW);
+  const mastered = ensureSchedule({ id: '2', es: 'el gato', mastered: true }, NOW);
   assert.equal(mastered.schedule.repetitions, 1);
   assert.ok(!isDue(mastered, NOW), 'a previously mastered word should not be due today');
 });
 
 test('due cards sort ahead of scheduled ones, most overdue first', () => {
-  const overdue = { id: 'a', word: 'a', schedule: { ...newSchedule(NOW), nextReview: addDays(NOW, -5).toISOString(), reviewCount: 1 } };
-  const dueToday = { id: 'b', word: 'b', schedule: { ...newSchedule(NOW), nextReview: day(NOW), reviewCount: 1 } };
-  const later = { id: 'c', word: 'c', schedule: { ...newSchedule(NOW), nextReview: addDays(NOW, 9).toISOString(), reviewCount: 1 } };
+  const overdue = { id: 'a', es: 'a', schedule: { ...newSchedule(NOW), nextReview: addDays(NOW, -5).toISOString(), reviewCount: 1 } };
+  const dueToday = { id: 'b', es: 'b', schedule: { ...newSchedule(NOW), nextReview: day(NOW), reviewCount: 1 } };
+  const later = { id: 'c', es: 'c', schedule: { ...newSchedule(NOW), nextReview: addDays(NOW, 9).toISOString(), reviewCount: 1 } };
 
   const order = sortForStudy([later, dueToday, overdue], NOW).map((w) => w.id);
   assert.deepEqual(order, ['a', 'b', 'c']);
