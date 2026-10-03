@@ -8,6 +8,7 @@
     "start": "python3 -m http.server 8080",
     "sync-server": "node tools/mock-server.mjs",
     "build": "node tools/build-single-file.js",
+    "keepalive": "node tools/keepalive.mjs",
     "test": "node --test tests/*.test.js",
     "test:e2e": "node tools/e2e.mjs",
     "test:sharing": "node tools/e2e-sharing.mjs",

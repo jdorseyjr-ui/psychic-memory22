@@ -90,6 +90,28 @@ push the item back; after that they're cleaned up.
 **A link stops working.** Your local copy is never destroyed by a sync failure.
 Worst case the list stops syncing and stays on your phone.
 
+**The project falls asleep.** Supabase pauses a free project after about a week
+of inactivity. Nothing is lost, but sharing stops until you restore it from
+[the dashboard](https://supabase.com/dashboard/projects) — and because the
+requests never land, the app reports it as *Offline*, which looks like a phone
+problem rather than a server one.
+
+`.github/workflows/keepalive.yml` prevents this: three times a week it calls
+`pull_list` with a share code that matches nothing, which is enough to count as
+activity and touches no data. If the project is paused or the schema is
+missing, the run fails and GitHub emails you — so the first sign is a build
+notification rather than a failed shop.
+
+Two things to know about it:
+
+- Scheduled workflows only run from the **default branch**, so the file has to
+  be on `main` to do anything.
+- GitHub disables scheduled workflows in a repository with no activity for 60
+  days. If you don't touch this repo for two months, re-enable it from the
+  Actions tab.
+
+Run it by hand any time with `npm run keepalive`, or from the Actions tab.
+
 **You share a link with a third person.** They join the same household, which
 means they also get your saved recipes and custom items. Fine for a couple;
 worth knowing before you forward a link to anyone else.
